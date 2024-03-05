@@ -1,5 +1,6 @@
 /* eslint no-use-before-define: 0 */
 import assert from 'node:assert';
+import net from 'node:net';
 import { Buffer } from 'node:buffer';
 import { encodeHttp, decodeHttpResponse } from '@quanxiaoxiao/http-utils';
 import { createConnector, errors } from '@quanxiaoxiao/about-net';
@@ -16,6 +17,7 @@ export default (
   getConnect,
 ) => {
   assert(typeof getConnect === 'function');
+
   const {
     path = '/',
     method = 'GET',
@@ -34,6 +36,9 @@ export default (
   if (signal) {
     assert(!signal.aborted);
   }
+
+  const socket = getConnect();
+  assert(socket && socket instanceof net.Socket);
 
   return new Promise((resolve, reject) => {
     const state = {
@@ -68,8 +73,6 @@ export default (
       headers,
       body,
     };
-
-    const socket = getConnect();
 
     function emitError(error) {
       if (state.isActive) {

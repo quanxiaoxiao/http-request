@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import net from 'node:net';
 import test from 'node:test';
 import request from './request.mjs';
 
@@ -12,7 +13,10 @@ test('request signal aborted', () => {
         {
           signal: controller.signal,
         },
-        () => {},
+        () => {
+          const socket = new net.Socket();
+          return socket;
+        },
       );
     },
     (error) => error instanceof assert.AssertionError,
