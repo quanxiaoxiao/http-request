@@ -1,0 +1,28 @@
+{
+  "name": "@quanxiaoxiao/http-request",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@babel/eslint-parser": "^7.23.10",
+    "@babel/plugin-proposal-nullish-coalescing-operator": "^7.18.6",
+    "@babel/plugin-proposal-optional-chaining": "^7.21.0",
+    "@babel/plugin-syntax-import-attributes": "^7.23.3",
+    "eslint": "^8.57.0",
+    "eslint-config-airbnb": "^19.0.4",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jsx-a11y": "^6.8.0",
+    "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^4.6.0"
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  },
+  "dependencies": {
+    "@quanxiaoxiao/about-net": "^0.8.3",
+    "@quanxiaoxiao/http-utils": "^0.3.4",
+    "lodash": "^4.17.21"
+  }
+}
