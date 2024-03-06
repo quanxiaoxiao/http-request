@@ -24,6 +24,15 @@ const waitFor = async (t = 100) => {
   });
 };
 
+const connect = (port) => () => {
+  const socket = net.Socket();
+  socket.connect({
+    host: '127.0.0.1',
+    port,
+  });
+  return socket;
+};
+
 test('request signal aborted', () => {
   assert.throws(
     () => {
@@ -67,14 +76,7 @@ test('request socket unable connect 2', async () => {
       {
         path: '/aaa',
       },
-      () => {
-        const socket = net.Socket();
-        socket.connect({
-          host: '127.0.0.1',
-          port: 9989,
-        });
-        return socket;
-      },
+      connect(9989),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -107,14 +109,7 @@ test('server close socket with no response', async () => {
   server.listen(port);
 
   try {
-    await request({}, () => {
-      const socket = net.Socket();
-      socket.connect({
-        host: '127.0.0.1',
-        port,
-      });
-      return socket;
-    });
+    await request({}, connect(port));
     throw new Error('xxx');
   } catch (error) {
     assert(error instanceof errors.SocketCloseError);
@@ -122,4 +117,58 @@ test('server close socket with no response', async () => {
   await waitFor();
   server.close();
   assert.equal(handleDataOnSocket.mock.calls.length, 1);
+});
+
+test('server response with not full chunk', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write('HTTP/1.1 200\r\nContent-Length: 3\r\n\r\nab');
+    }, 20);
+    setTimeout(() => {
+      socket.destroy();
+    }, 100);
+  });
+  server.listen(port);
+  try {
+    await request({}, connect(port));
+    throw new Error('xxx');
+  } catch (error) {
+    assert(error instanceof errors.SocketCloseError);
+  }
+  await waitFor(500);
+  server.close();
+  assert.equal(handleDataOnSocket.mock.calls.length, 1);
+});
+
+test('request onRequest trigger error', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+  try {
+    await request(
+      {
+        onRequest: async () => {
+          await waitFor(200);
+          assert.equal(handleCloseOnSocket.mock.calls.length, 0);
+          throw new Error('eeee');
+        },
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert.equal(error.message, 'eeee');
+  }
+  await waitFor(500);
+  server.close();
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  assert.equal(handleDataOnSocket.mock.calls.length, 0);
 });
