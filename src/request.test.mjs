@@ -251,7 +251,7 @@ test('request', async () => {
   assert.equal(onOutgoing.mock.calls.length, 1);
 });
 
-test('request byp response too early', async () => {
+test('request by response too early', async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});
   const handleCloseOnSocket = mock.fn(() => {});
