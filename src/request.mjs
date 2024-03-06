@@ -26,7 +26,6 @@ export default (
     onRequest,
     onStartLine,
     onHeader,
-    onResponse,
     onBody,
     onOutgoing,
     onIncoming,
@@ -207,10 +206,6 @@ export default (
           state.headersRaw = ret.headersRaw;
           if (onHeader) {
             await onHeader(getState());
-          }
-          assert(state.isActive);
-          if (onResponse) {
-            await onResponse(getState());
           }
         },
         onBody: (bodyChunk) => {

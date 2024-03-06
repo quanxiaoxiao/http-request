@@ -177,14 +177,7 @@ test('request', async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});
   const handleCloseOnSocket = mock.fn(() => {});
-  const onResponse = mock.fn((state) => {
-    assert.equal(state.statusCode, 200);
-    assert.equal(state.body.toString(), '');
-    assert.deepEqual(state.headers, { server: 'quan', 'content-length': 2 });
-    assert.deepEqual(state.headersRaw, ['server', 'quan', 'Content-Length', '2']);
-  });
   const onHeader = mock.fn((state) => {
-    assert.equal(onResponse.mock.calls.length, 0);
     assert.equal(state.statusCode, 200);
     assert.equal(state.body.toString(), '');
     assert.deepEqual(state.headers, { server: 'quan', 'content-length': 2 });
@@ -229,7 +222,6 @@ test('request', async () => {
       onRequest,
       onStartLine,
       onHeader,
-      onResponse,
       onOutgoing,
       onIncoming,
     },
@@ -246,7 +238,6 @@ test('request', async () => {
   assert.equal(onRequest.mock.calls.length, 1);
   assert.equal(onStartLine.mock.calls.length, 1);
   assert.equal(onHeader.mock.calls.length, 1);
-  assert.equal(onResponse.mock.calls.length, 1);
   assert.equal(onIncoming.mock.calls.length, 1);
   assert.equal(onOutgoing.mock.calls.length, 1);
 });
@@ -298,4 +289,53 @@ test('request by response too early', async () => {
   assert.equal(onStartLine.mock.calls.length, 0);
   assert.equal(onIncoming.mock.calls.length, 0);
   assert.equal(onOutgoing.mock.calls.length, 0);
+});
+
+test('request onStartLine trigger error', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write(encodeHttp({
+        headers: {
+          server: 'quan',
+        },
+        body: 'ok',
+      }));
+    }, 50);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+  const onIncoming = mock.fn(() => {
+  });
+  const onStartLine = mock.fn(async () => {
+    await waitFor(300);
+    throw new Error('bbbb');
+  });
+  const onHeader = mock.fn(() => {
+  });
+  try {
+    await request(
+      {
+        body: 'quan1',
+        headers: { name: 'aaa' },
+        onStartLine,
+        onIncoming,
+        onHeader,
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert.equal(error.message, 'bbbb');
+  }
+  await waitFor(500);
+  assert.equal(onStartLine.mock.calls.length, 1);
+  assert.equal(onIncoming.mock.calls.length, 1);
+  assert.equal(onHeader.mock.calls.length, 0);
+  assert.equal(handleDataOnSocket.mock.calls.length, 1);
+
+  server.close();
 });
