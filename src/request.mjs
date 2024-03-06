@@ -208,7 +208,7 @@ export default (
             await onHeader(getState());
           }
         },
-        onBody: (bodyChunk) => {
+        onBody: async (bodyChunk) => {
           assert(state.isActive);
           if (state.dateTimeBody == null) {
             state.dateTimeBody = Date.now();
@@ -403,13 +403,7 @@ export default (
       }, 1000 * 50);
 
       if (signal) {
-        if (signal.aborted) {
-          state.isActive = false;
-          closeRequestStream();
-          state.connector();
-        } else {
-          signal.addEventListener('abort', handleAbortOnSignal, { once: true });
-        }
+        signal.addEventListener('abort', handleAbortOnSignal, { once: true });
       }
       if (onBody && onBody.writable) {
         state.isBindDrainOnBody = true;

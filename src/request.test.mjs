@@ -419,3 +419,45 @@ test('request onStartLine trigger error', async () => {
 
   server.close();
 });
+
+test('request onBody trigger error', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write('HTTP/1.1 200 OK\r\nServer: quan\r\nContent-Length: 6\r\n\r\n11');
+    }, 50);
+    setTimeout(() => {
+      socket.write('22');
+    }, 100);
+    setTimeout(() => {
+      socket.write('33');
+    }, 150);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onBody = mock.fn((chunk) => {
+    if (chunk.toString() === '22') {
+      throw new Error('cccc');
+    }
+  });
+
+  try {
+    await request(
+      {
+        onBody,
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert.equal(error.message, 'cccc');
+  }
+  server.close();
+  assert.equal(onBody.mock.calls.length, 2);
+  await waitFor(100);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+});
