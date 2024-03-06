@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import net from 'node:net';
+import { PassThrough } from 'node:stream';
 import { test, mock } from 'node:test';
 import { encodeHttp } from '@quanxiaoxiao/http-utils';
 import { errors } from '@quanxiaoxiao/about-net';
@@ -458,6 +459,53 @@ test('request onBody trigger error', async () => {
   }
   server.close();
   assert.equal(onBody.mock.calls.length, 2);
+  await waitFor(100);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+});
+
+test('request onBody with stream', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write('HTTP/1.1 200 OK\r\nServer: quan\r\nContent-Length: 6\r\n\r\n11');
+    }, 50);
+    setTimeout(() => {
+      socket.write('22');
+    }, 100);
+    setTimeout(() => {
+      socket.write('33');
+    }, 150);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onBody = new PassThrough();
+  const onHeader = mock.fn(() => {
+    assert(onBody.eventNames().includes('drain'));
+    assert(onBody.eventNames().includes('close'));
+  });
+  const ret = await request(
+    {
+      onBody,
+      onHeader,
+    },
+    connect(port),
+  );
+  assert.equal(ret.body.toString(), '');
+  const bufList = [];
+  onBody.on('data', (chunk) => {
+    bufList.push(chunk);
+  });
+  setTimeout(() => {
+    assert.equal(Buffer.concat(bufList).toString(), '112233');
+  }, 200);
+  assert(!onBody.destroyed);
+  assert(!onBody.eventNames().includes('drain'));
+  assert(!onBody.eventNames().includes('close'));
+  server.close();
   await waitFor(100);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
