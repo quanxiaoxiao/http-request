@@ -275,6 +275,8 @@ test('request byp response too early', async () => {
   try {
     await request(
       {
+        body: 'quan1',
+        headers: { name: 'aaa' },
         onRequest: async () => {
           await waitFor(300);
           assert.equal(handleCloseOnSocket.mock.calls.length, 0);
