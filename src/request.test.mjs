@@ -189,8 +189,8 @@ test('request', async () => {
   });
   const onRequest = mock.fn((options) => {
     assert.equal(onStartLine.mock.calls.length, 0);
-    assert.equal(options.path, '/');
-    assert.equal(options.method, 'GET');
+    assert.equal(options.path, '/abc?name=aaa');
+    assert.equal(options.method, 'POST');
     assert.equal(options.body, 'quan1');
     assert.deepEqual(options.headers, { name: 'aaa' });
   });
@@ -199,7 +199,7 @@ test('request', async () => {
   });
   const onOutgoing = mock.fn((chunk) => {
     assert.equal(onIncoming.mock.calls.length, 0);
-    assert.equal(chunk.toString(), 'GET / HTTP/1.1\r\nname: aaa\r\nContent-Length: 5\r\n\r\nquan1');
+    assert.equal(chunk.toString(), 'POST /abc?name=aaa HTTP/1.1\r\nname: aaa\r\nContent-Length: 5\r\n\r\nquan1');
   });
 
   const server = net.createServer((socket) => {
@@ -217,6 +217,8 @@ test('request', async () => {
   server.listen(port);
   const ret = await request(
     {
+      method: 'POST',
+      path: '/abc?name=aaa',
       body: 'quan1',
       headers: { name: 'aaa' },
       onRequest,
@@ -327,6 +329,46 @@ test('request onBody', async () => {
     'cbb11',
   );
   server.close();
+});
+
+test('request onHeader trigger error', async () => {
+  const port = getPort();
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.write('HTTP/1.1 200 OK\r\nServer: quan\r\nContent-Length: 5\r\n\r\ncbbee');
+    }, 50);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onBody = mock.fn(() => {});
+  const onHeader = mock.fn(async () => {
+    await waitFor(100);
+    throw new Error('cccc');
+  });
+
+  try {
+    await request(
+      {
+        body: 'quan1',
+        onHeader,
+        onBody,
+      },
+      connect(port),
+    );
+    throw new Error('xxxx');
+  } catch (error) {
+    assert.equal(error.message, 'cccc');
+    assert.equal(onBody.mock.calls.length, 0);
+  }
+  server.close();
+  await waitFor(100);
+  assert.equal(
+    handleCloseOnSocket.mock.calls.length,
+    1,
+  );
 });
 
 test('request onStartLine trigger error', async () => {

@@ -91,7 +91,7 @@ export default (
 
     function outgoing(chunk) {
       assert(state.isActive);
-      const size = chunk ? chunk.length : 0;
+      const size = chunk.length;
       if (size > 0) {
         try {
           state.bytesOutgoing += size;
