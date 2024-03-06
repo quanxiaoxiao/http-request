@@ -250,3 +250,50 @@ test('request', async () => {
   assert.equal(onIncoming.mock.calls.length, 1);
   assert.equal(onOutgoing.mock.calls.length, 1);
 });
+
+test('request byp response too early', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const onStartLine = mock.fn(() => {});
+  const onIncoming = mock.fn(() => {});
+  const onOutgoing = mock.fn(() => {});
+
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    socket.write(encodeHttp({
+      headers: {
+        server: 'quan',
+      },
+      body: 'ok',
+    }));
+    socket.on('close', handleCloseOnSocket);
+  });
+
+  server.listen(port);
+
+  try {
+    await request(
+      {
+        onRequest: async () => {
+          await waitFor(300);
+          assert.equal(handleCloseOnSocket.mock.calls.length, 0);
+        },
+        onStartLine,
+        onIncoming,
+        onOutgoing,
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert.equal(error.message, 'request is not send, but received chunk');
+  }
+  await waitFor(500);
+  server.close();
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  assert.equal(handleDataOnSocket.mock.calls.length, 0);
+  assert.equal(onStartLine.mock.calls.length, 0);
+  assert.equal(onIncoming.mock.calls.length, 0);
+  assert.equal(onOutgoing.mock.calls.length, 0);
+});

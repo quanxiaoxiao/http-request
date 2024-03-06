@@ -351,7 +351,7 @@ export default (
           assert(state.isActive);
           if (state.dateTimeRequestSend == null) {
             state.connector();
-            handleError(new Error('request is not send'));
+            handleError(new Error('request is not send, but received chunk'));
           } else {
             const size = chunk.length;
             state.bytesIncoming += size;
