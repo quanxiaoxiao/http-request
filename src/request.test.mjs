@@ -194,16 +194,19 @@ test('request', async () => {
     assert.equal(onHeader.mock.calls.length, 0);
     assert.equal(state.statusCode, 200);
   });
-  const onRequest = mock.fn((state) => {
+  const onRequest = mock.fn((options) => {
     assert.equal(onStartLine.mock.calls.length, 0);
-    assert.equal(state.statusCode, null);
+    assert.equal(options.path, '/');
+    assert.equal(options.method, 'GET');
+    assert.equal(options.body, 'quan1');
+    assert.deepEqual(options.headers, { name: 'aaa' });
   });
   const onIncoming = mock.fn((chunk) => {
     assert.equal(chunk.toString(), 'HTTP/1.1 200 OK\r\nserver: quan\r\nContent-Length: 2\r\n\r\nok');
   });
   const onOutgoing = mock.fn((chunk) => {
     assert.equal(onIncoming.mock.calls.length, 0);
-    assert.equal(chunk.toString(), 'GET / HTTP/1.1\r\nContent-Length: 5\r\n\r\nquan1');
+    assert.equal(chunk.toString(), 'GET / HTTP/1.1\r\nname: aaa\r\nContent-Length: 5\r\n\r\nquan1');
   });
 
   const server = net.createServer((socket) => {
@@ -222,6 +225,7 @@ test('request', async () => {
   const ret = await request(
     {
       body: 'quan1',
+      headers: { name: 'aaa' },
       onRequest,
       onStartLine,
       onHeader,
