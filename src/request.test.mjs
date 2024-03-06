@@ -172,3 +172,77 @@ test('request onRequest trigger error', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   assert.equal(handleDataOnSocket.mock.calls.length, 0);
 });
+
+test('request', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const onResponse = mock.fn((state) => {
+    assert.equal(state.statusCode, 200);
+    assert.equal(state.body.toString(), '');
+    assert.deepEqual(state.headers, { server: 'quan', 'content-length': 2 });
+    assert.deepEqual(state.headersRaw, ['server', 'quan', 'Content-Length', '2']);
+  });
+  const onHeader = mock.fn((state) => {
+    assert.equal(onResponse.mock.calls.length, 0);
+    assert.equal(state.statusCode, 200);
+    assert.equal(state.body.toString(), '');
+    assert.deepEqual(state.headers, { server: 'quan', 'content-length': 2 });
+    assert.deepEqual(state.headersRaw, ['server', 'quan', 'Content-Length', '2']);
+  });
+  const onStartLine = mock.fn((state) => {
+    assert.equal(onHeader.mock.calls.length, 0);
+    assert.equal(state.statusCode, 200);
+  });
+  const onRequest = mock.fn((state) => {
+    assert.equal(onStartLine.mock.calls.length, 0);
+    assert.equal(state.statusCode, null);
+  });
+  const onIncoming = mock.fn((chunk) => {
+    assert.equal(chunk.toString(), 'HTTP/1.1 200 OK\r\nserver: quan\r\nContent-Length: 2\r\n\r\nok');
+  });
+  const onOutgoing = mock.fn((chunk) => {
+    assert.equal(onIncoming.mock.calls.length, 0);
+    assert.equal(chunk.toString(), 'GET / HTTP/1.1\r\nContent-Length: 5\r\n\r\nquan1');
+  });
+
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write(encodeHttp({
+        headers: {
+          server: 'quan',
+        },
+        body: 'ok',
+      }));
+    }, 50);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+  const ret = await request(
+    {
+      body: 'quan1',
+      onRequest,
+      onStartLine,
+      onHeader,
+      onResponse,
+      onOutgoing,
+      onIncoming,
+    },
+    connect(port),
+  );
+  server.close();
+  assert.equal(ret.body.toString(), 'ok');
+  assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 2 });
+  assert.deepEqual(ret.headersRaw, ['server', 'quan', 'Content-Length', '2']);
+  assert.equal(ret.statusCode, 200);
+  await waitFor(100);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  assert.equal(handleDataOnSocket.mock.calls.length, 1);
+  assert.equal(onRequest.mock.calls.length, 1);
+  assert.equal(onStartLine.mock.calls.length, 1);
+  assert.equal(onHeader.mock.calls.length, 1);
+  assert.equal(onResponse.mock.calls.length, 1);
+  assert.equal(onIncoming.mock.calls.length, 1);
+  assert.equal(onOutgoing.mock.calls.length, 1);
+});

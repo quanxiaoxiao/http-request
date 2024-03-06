@@ -191,18 +191,13 @@ export default (
     }
 
     function bindResponseDecode() {
-      state.dateTimeResponse = Date.now();
       state.decode = decodeHttpResponse({
         onStartLine: async (ret) => {
           state.statusCode = ret.statusCode;
           state.httpVersion = ret.httpVersion;
           state.statusText = ret.statusText;
           if (onStartLine) {
-            await onStartLine({
-              statusCode: state.statusCode,
-              httpVersion: state.httpVersion,
-              statusText: state.statusText,
-            });
+            await onStartLine(getState());
           }
         },
         onHeader: async (ret) => {
@@ -211,20 +206,11 @@ export default (
           state.headers = ret.headers;
           state.headersRaw = ret.headersRaw;
           if (onHeader) {
-            await onHeader({
-              headers: state.headers,
-              headersRaw: state.headersRaw,
-            });
+            await onHeader(getState());
           }
           assert(state.isActive);
           if (onResponse) {
-            await onResponse({
-              statusCode: state.statusCode,
-              httpVersion: state.httpVersion,
-              statusText: state.statusText,
-              headers: state.headers,
-              headersRaw: state.headersRaw,
-            });
+            await onResponse(getState());
           }
         },
         onBody: (bodyChunk) => {
@@ -263,24 +249,7 @@ export default (
           if (signal) {
             signal.removeEventListener('abort', handleAbortOnSignal);
           }
-          resolve({
-            dateTimeCreate: state.dateTimeCreate,
-            dateTimeConnect: state.dateTimeConnect,
-            dateTimeResponse: state.dateTimeResponse,
-            dateTimeHeader: state.dateTimeHeader,
-            dateTimeBody: state.dateTimeBody,
-            dateTimeEnd: state.dateTimeEnd,
-            dateTimeRequestSend: state.dateTimeRequestSend,
-            bytesIncoming: state.bytesIncoming,
-            bytesOutgoing: state.bytesOutgoing,
-            bytesBody: state.bytesBody,
-            httpVersion: state.httpVersion,
-            statusCode: state.statusCode,
-            statusText: state.statusText,
-            headersRaw: state.headersRaw,
-            headers: state.headers,
-            body: state.body,
-          });
+          resolve(getState());
           state.connector.end();
         },
       });
@@ -346,15 +315,36 @@ export default (
       state.connector();
     }
 
+    function getState() {
+      return {
+        dateTimeCreate: state.dateTimeCreate,
+        dateTimeConnect: state.dateTimeConnect,
+        dateTimeResponse: state.dateTimeResponse,
+        dateTimeHeader: state.dateTimeHeader,
+        dateTimeBody: state.dateTimeBody,
+        dateTimeEnd: state.dateTimeEnd,
+        dateTimeRequestSend: state.dateTimeRequestSend,
+        bytesIncoming: state.bytesIncoming,
+        bytesOutgoing: state.bytesOutgoing,
+        bytesBody: state.bytesBody,
+        httpVersion: state.httpVersion,
+        statusCode: state.statusCode,
+        statusText: state.statusText,
+        headersRaw: state.headersRaw,
+        headers: state.headers,
+        body: state.body,
+      };
+    }
+
     state.connector = createConnector(
       {
         onConnect: () => {
           assert(state.isActive);
+          assert(!state.isConnect);
           state.isConnect = true;
-          const now = Date.now();
           clearTimeout(state.tick);
           state.tick = null;
-          state.dateTimeConnect = now;
+          state.dateTimeConnect = Date.now();
           handleConnect();
         },
         onData: async (chunk) => {
@@ -366,6 +356,7 @@ export default (
             const size = chunk.length;
             state.bytesIncoming += size;
             if (!state.decode) {
+              state.dateTimeResponse = Date.now();
               bindResponseDecode();
             }
             if (size > 0) {
@@ -414,10 +405,16 @@ export default (
           closeRequestStream();
           emitError(new SocketConnectTimeoutError());
         }
-      }, 1000 * 30);
+      }, 1000 * 50);
 
       if (signal) {
-        signal.addEventListener('abort', handleAbortOnSignal, { once: true });
+        if (signal.aborted) {
+          state.isActive = false;
+          closeRequestStream();
+          state.connector();
+        } else {
+          signal.addEventListener('abort', handleAbortOnSignal, { once: true });
+        }
       }
       if (onBody && onBody.writable) {
         state.isBindDrainOnBody = true;
