@@ -509,3 +509,46 @@ test('request onBody with stream', async () => {
   await waitFor(100);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
+
+test('request onBody with stream close', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write('HTTP/1.1 200 OK\r\nServer: quan\r\nContent-Length: 6\r\n\r\n11');
+    }, 50);
+    setTimeout(() => {
+      socket.write('22');
+    }, 100);
+    setTimeout(() => {
+      assert(socket.destroyed);
+    }, 200);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onBody = new PassThrough();
+
+  setTimeout(() => {
+    assert(!onBody.destroyed);
+    onBody.destroy();
+  }, 150);
+
+  try {
+    await request(
+      {
+        onBody,
+      },
+      connect(port),
+    );
+    throw new Error('xxxx');
+  } catch (error) {
+    assert.equal(error.message, 'body stream close error');
+  }
+  assert(onBody.destroyed);
+  server.close();
+  await waitFor(100);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+});
