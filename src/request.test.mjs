@@ -291,6 +291,44 @@ test('request by response too early', async () => {
   assert.equal(onOutgoing.mock.calls.length, 0);
 });
 
+test('request onBody', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write('HTTP/1.1 200 OK\r\nServer: quan\r\nContent-Length: 5\r\n\r\nc');
+    }, 50);
+    setTimeout(() => {
+      socket.write('bb');
+    }, 100);
+    setTimeout(() => {
+      socket.write('11');
+    }, 150);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onBody = mock.fn(() => {});
+
+  const ret = await request(
+    {
+      onBody,
+    },
+    connect(port),
+  );
+  assert.equal(ret.body.toString(), '');
+  assert.equal(ret.headers['content-length'], 5);
+  assert.equal(ret.statusCode, 200);
+  assert.equal(onBody.mock.calls.length, 3);
+  assert.equal(
+    Buffer.concat(onBody.mock.calls.map((d) => d.arguments[0])).toString(),
+    'cbb11',
+  );
+  server.close();
+});
+
 test('request onStartLine trigger error', async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});
