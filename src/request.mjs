@@ -304,8 +304,10 @@ export default (
     }
 
     function handleCloseOnBody() {
-      state.isBindDrainOnBody = false;
-      onBody.off('drain', handleDrainOnBody);
+      if (state.isBindDrainOnBody) {
+        state.isBindDrainOnBody = false;
+        onBody.off('drain', handleDrainOnBody);
+      }
       handleError(new Error('body stream close error'));
       state.connector();
     }
