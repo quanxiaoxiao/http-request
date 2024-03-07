@@ -659,8 +659,55 @@ test('request outgoing trigger error', async () => {
   } catch (error) {
     assert.equal(error.message, 'cccccc');
   }
-  server.close();
   await waitFor(200);
+  server.close();
   assert.equal(handleDataOnSocket.mock.calls.length, 0);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+});
+
+test('request body with stream', async () => {
+  const port = getPort();
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    let i = 0;
+    socket.on('data', (chunk) => {
+      if (i === 0) {
+        assert.equal(chunk.toString(), 'POST /abc HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n');
+      }
+      if (i === 21) {
+        socket.write(encodeHttp({
+          headers: {
+            server: 'quan',
+          },
+          body: 'ok',
+        }));
+      }
+      i++;
+    });
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+  const body = new PassThrough();
+  let i = 0;
+  const tick = setInterval(() => {
+    body.write(Buffer.from('aaabb'));
+    i++;
+    if (i === 20) {
+      clearInterval(tick);
+      body.end();
+    }
+  }, 10);
+  const ret = await request(
+    {
+      path: '/abc',
+      method: 'POST',
+      body,
+    },
+    connect(port),
+  );
+  assert.equal(ret.statusCode, 200);
+  assert(body.destroyed);
+  await waitFor(200);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  server.close();
 });
