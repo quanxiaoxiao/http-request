@@ -208,7 +208,7 @@ export default (
             await onHeader(getState());
           }
         },
-        onBody: async (bodyChunk) => {
+        onBody: (bodyChunk) => {
           assert(state.isActive);
           if (state.dateTimeBody == null) {
             state.dateTimeBody = Date.now();
@@ -229,7 +229,7 @@ export default (
             ]);
           }
         },
-        onEnd: async () => {
+        onEnd: () => {
           assert(state.isActive);
           state.isActive = false;
           state.dateTimeEnd = Date.now();
@@ -267,9 +267,9 @@ export default (
           headers: requestOptions.headers,
           body: requestOptions.body,
           onHeader: (chunkRequestHeaders) => {
-            state.dateTimeRequestSend = Date.now();
-            outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
             if (state.isActive) {
+              state.dateTimeRequestSend = Date.now();
+              outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
               requestOptions.body.once('error', handleErrorOnRequestBody);
               requestOptions.body.once('close', handleCloseOnRequestBody);
               requestOptions.body.once('end', handleEndOnRequestBody);

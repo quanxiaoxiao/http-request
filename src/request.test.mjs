@@ -719,3 +719,40 @@ test('request body with stream', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   server.close();
 });
+
+test('request body with stream, before send is closed', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onRequest = mock.fn((options) => {
+    assert(options.body.readable);
+    options.body.destroy();
+    assert(!options.body.readable);
+  });
+
+  try {
+    const body = new PassThrough();
+    await request(
+      {
+        onRequest,
+        body,
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert.equal(error.message, 'request body stream unable read');
+  }
+
+  await waitFor(100);
+  server.close();
+  assert.equal(handleDataOnSocket.mock.calls.length, 0);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  assert.equal(onRequest.mock.calls.length, 1);
+});
