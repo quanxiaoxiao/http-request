@@ -757,6 +757,53 @@ test('request body with stream, before send is closed', async () => {
   assert.equal(onRequest.mock.calls.length, 1);
 });
 
+test('request body with stream, stream by close', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onRequest = mock.fn((options) => {
+    assert(!options.body.eventNames().includes('end'));
+    assert(!options.body.eventNames().includes('data'));
+    setTimeout(() => {
+      options.body.write(Buffer.from('aa'));
+      assert(options.body.eventNames().includes('end'));
+      assert(options.body.eventNames().includes('data'));
+    }, 20);
+    setTimeout(() => {
+      options.body.destroy();
+    }, 50);
+  });
+
+  const body = new PassThrough();
+  try {
+    await request(
+      {
+        onRequest,
+        body,
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert.equal(error.message, 'request body stream close');
+    assert(!body.eventNames().includes('end'));
+    assert(!body.eventNames().includes('data'));
+  }
+
+  await waitFor(100);
+  server.close();
+  assert.equal(handleDataOnSocket.mock.calls.length, 2);
+  assert.equal(handleDataOnSocket.mock.calls[1].arguments[0].toString(), '2\r\naa\r\n');
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  assert.equal(onRequest.mock.calls.length, 1);
+});
+
 test('request request options invalid', async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});

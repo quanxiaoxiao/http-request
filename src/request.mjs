@@ -156,17 +156,14 @@ export default (
       requestOptions.body.off('close', handleCloseOnRequestBody);
       requestOptions.body.off('error', handleErrorOnRequestBody);
       if (state.isActive) {
-        try {
-          outgoing(state.encodeRequest());
-        } catch (error) {
-          state.connector();
-          emitError(error);
-        }
+        outgoing(state.encodeRequest());
       }
     }
 
     function handleCloseOnRequestBody() {
       requestOptions.body.off('end', handleEndOnRequestBody);
+      requestOptions.body.off('data', handleDataOnRequestBody);
+      requestOptions.body.off('error', handleErrorOnRequestBody);
       emitError('request body stream close');
       state.connector();
     }
