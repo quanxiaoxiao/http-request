@@ -76,7 +76,7 @@ export default (
     function emitError(error) {
       if (state.isActive) {
         state.isActive = false;
-        if (state.connector && signal) {
+        if (state.connector && signal && !signal.aborted) {
           signal.removeEventListener('abort', handleAbortOnSignal);
         }
         const errObj = typeof error === 'string' ? new Error(error) : error;
@@ -143,13 +143,9 @@ export default (
     }
 
     function handleDataOnRequestBody(chunk) {
+      assert(state.encodeRequest);
       if (state.isActive) {
-        try {
-          outgoing(state.encodeRequest(chunk));
-        } catch (error) {
-          state.connector();
-          handleError(error);
-        }
+        outgoing(state.encodeRequest(chunk));
       } else {
         requestOptions.body.off('data', handleDataOnRequestBody);
         closeRequestStream();
