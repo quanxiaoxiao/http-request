@@ -2,7 +2,8 @@ import assert from 'node:assert';
 import net from 'node:net';
 import { PassThrough } from 'node:stream';
 import { test, mock } from 'node:test';
-import { encodeHttp } from '@quanxiaoxiao/http-utils';
+import _ from 'lodash';
+import { encodeHttp, decodeHttpRequest } from '@quanxiaoxiao/http-utils';
 import { errors } from '@quanxiaoxiao/about-net';
 import request from './request.mjs';
 
@@ -668,21 +669,28 @@ test('request outgoing trigger error', async () => {
 test('request body with stream', async () => {
   const port = getPort();
   const handleCloseOnSocket = mock.fn(() => {});
+  const count = 30;
+  const content = 'aabbcc';
   const server = net.createServer((socket) => {
-    let i = 0;
+    const decode = decodeHttpRequest();
     socket.on('data', (chunk) => {
-      if (i === 0) {
-        assert.equal(chunk.toString(), 'POST /abc HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n');
-      }
-      if (i === 21) {
-        socket.write(encodeHttp({
-          headers: {
-            server: 'quan',
-          },
-          body: 'ok',
-        }));
-      }
-      i++;
+      decode(chunk).then((ret) => {
+        if (ret.complete) {
+          assert.equal(ret.path, '/abc');
+          assert.equal(ret.method, 'POST');
+          assert.deepEqual(ret.headers, { 'transfer-encoding': 'chunked' });
+          assert.equal(
+            ret.body.toString(),
+            _.times(count).map((i) => `${content}:${i}`).join(''),
+          );
+          socket.write(encodeHttp({
+            headers: {
+              server: 'quan',
+            },
+            body: 'ok',
+          }));
+        }
+      });
     });
     socket.on('close', handleCloseOnSocket);
   });
@@ -690,9 +698,9 @@ test('request body with stream', async () => {
   const body = new PassThrough();
   let i = 0;
   const tick = setInterval(() => {
-    body.write(Buffer.from('aaabb'));
+    body.write(Buffer.from(`${content}:${i}`));
     i++;
-    if (i === 20) {
+    if (i >= count) {
       clearInterval(tick);
       body.end();
     }
