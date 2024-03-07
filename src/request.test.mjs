@@ -389,6 +389,7 @@ test('request onStartLine trigger error', async () => {
     socket.on('close', handleCloseOnSocket);
   });
   server.listen(port);
+  const controller = new AbortController();
   const onIncoming = mock.fn(() => {
   });
   const onStartLine = mock.fn(async () => {
@@ -402,6 +403,7 @@ test('request onStartLine trigger error', async () => {
       {
         body: 'quan1',
         headers: { name: 'aaa' },
+        signal: controller.signal,
         onStartLine,
         onIncoming,
         onHeader,
@@ -413,6 +415,7 @@ test('request onStartLine trigger error', async () => {
     assert.equal(error.message, 'bbbb');
   }
   await waitFor(500);
+  assert(!controller.signal.aborted);
   assert.equal(onStartLine.mock.calls.length, 1);
   assert.equal(onIncoming.mock.calls.length, 1);
   assert.equal(onHeader.mock.calls.length, 0);
@@ -553,7 +556,7 @@ test('request onBody with stream close', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
 
-test('request onBody with stream trigger error', async () => {
+test('request onBody with stream, at onHeader trigger error', async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});
   const handleCloseOnSocket = mock.fn(() => {});
@@ -585,10 +588,79 @@ test('request onBody with stream trigger error', async () => {
   } catch (error) {
     assert.equal(error.message, 'sss');
   }
+  assert(onHeader.mock.calls.length, 1);
   assert(!onBody.eventNames().includes('drain'));
   assert(!onBody.eventNames().includes('close'));
-  assert(!onBody.destroyed);
   server.close();
   await waitFor(100);
+  assert(!onBody.destroyed);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+});
+
+test('request signal', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write('HTTP/1.1 200 OK\r\nServer: quan\r\nContent-Length: 6\r\n\r\n112233');
+    }, 50);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+  const controller = new AbortController();
+  const onHeader = mock.fn(() => {
+  });
+  const onStartLine = mock.fn(() => {
+    assert(!controller.signal.aborted);
+    controller.abort();
+  });
+  try {
+    await request(
+      {
+        onHeader,
+        onStartLine,
+        signal: controller.signal,
+      },
+      connect(port),
+    );
+    throw new Error('xxxx');
+  } catch (error) {
+    assert.equal(error.message, 'abort');
+  }
+  assert.equal(onStartLine.mock.calls.length, 1);
+  assert.equal(onHeader.mock.calls.length, 0);
+  server.close();
+  await waitFor(100);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+});
+
+test('request outgoing trigger error', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+  const onOutgoing = mock.fn(() => {
+    throw new Error('cccccc');
+  });
+  try {
+    await request(
+      {
+        onOutgoing,
+      },
+      connect(port),
+    );
+    throw new Error('xxxx');
+  } catch (error) {
+    assert.equal(error.message, 'cccccc');
+  }
+  server.close();
+  await waitFor(100);
+  assert.equal(handleDataOnSocket.mock.calls.length, 0);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
