@@ -87,6 +87,36 @@ test('request socket unable connect 2', async () => {
   await waitFor();
 });
 
+test('request', async () => {
+  const port = getPort();
+
+  const handleDataOnSocket = mock.fn(() => {});
+
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write(encodeHttp({
+        statusCode: 204,
+        headers: { server: 'quan' },
+        body: null,
+      }));
+    }, 80);
+  });
+
+  server.listen(port);
+
+  const controller = new AbortController();
+
+  const ret = await request({
+    signal: controller.signal,
+  }, connect(port));
+  assert(!controller.signal.aborted);
+  assert.equal(ret.statusCode, 204);
+  await waitFor(100);
+  server.close();
+  assert.equal(handleDataOnSocket.mock.calls.length, 1);
+});
+
 test('server close socket with no response', async () => {
   const port = getPort();
 
@@ -794,6 +824,51 @@ test('request body with stream, stream by close', async () => {
     assert.equal(error.message, 'request body stream close');
     assert(!body.eventNames().includes('end'));
     assert(!body.eventNames().includes('data'));
+  }
+
+  await waitFor(100);
+  server.close();
+  assert.equal(handleDataOnSocket.mock.calls.length, 2);
+  assert.equal(handleDataOnSocket.mock.calls[1].arguments[0].toString(), '2\r\naa\r\n');
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  assert.equal(onRequest.mock.calls.length, 1);
+});
+
+test('request body with stream, stream trigger error', async () => {
+  const port = getPort();
+  const handleDataOnSocket = mock.fn(() => {});
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onRequest = mock.fn((options) => {
+    assert(!options.body.eventNames().includes('end'));
+    assert(!options.body.eventNames().includes('data'));
+    setTimeout(() => {
+      options.body.write(Buffer.from('aa'));
+      assert(options.body.eventNames().includes('end'));
+      assert(options.body.eventNames().includes('data'));
+    }, 20);
+    setTimeout(() => {
+      options.body.emit('error', new Error('aaaaaa'));
+    }, 50);
+  });
+
+  const body = new PassThrough();
+  try {
+    await request(
+      {
+        onRequest,
+        body,
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert.equal(error.message, 'aaaaaa');
   }
 
   await waitFor(100);
