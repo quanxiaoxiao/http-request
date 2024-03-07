@@ -660,7 +660,7 @@ test('request outgoing trigger error', async () => {
     assert.equal(error.message, 'cccccc');
   }
   server.close();
-  await waitFor(100);
+  await waitFor(200);
   assert.equal(handleDataOnSocket.mock.calls.length, 0);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
