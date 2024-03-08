@@ -295,14 +295,19 @@ export default (
     }
 
     function handleAbortOnSignal() {
+      clearRequestBodyStreamEvents();
+      if (state.tick) {
+        clearTimeout(state.tick);
+        state.tick = null;
+      }
+      if (state.isBindDrainOnBody) {
+        state.isBindDrainOnBody = false;
+        onBody.off('drain', handleDrainOnBody);
+        onBody.off('close', handleCloseOnBody);
+      }
       if (state.isActive) {
         state.isActive = false;
         state.connector();
-        clearRequestBodyStreamEvents();
-        if (state.tick) {
-          clearTimeout(state.tick);
-          state.tick = null;
-        }
         reject(new Error('abort'));
       }
     }
