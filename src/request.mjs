@@ -49,7 +49,6 @@ export default (
       tick: null,
       connector: null,
       dateTimeCreate: Date.now(),
-      dateTimeConnect: null,
       dateTimeRequestSend: null,
       dateTimeResponse: null,
       dateTimeHeader: null,
@@ -66,6 +65,14 @@ export default (
       headers: {},
       headersRaw: [],
       encodeRequest: null,
+
+      timeStart: performance.now(),
+      timeConnect: null,
+      timeRequestSend: null,
+      timeResponse: null,
+      timeHeader: null,
+      timeBody: null,
+      timeEnd: null,
     };
 
     const requestOptions = {
@@ -316,7 +323,6 @@ export default (
     function getState() {
       return {
         dateTimeCreate: state.dateTimeCreate,
-        dateTimeConnect: state.dateTimeConnect,
         dateTimeResponse: state.dateTimeResponse,
         dateTimeHeader: state.dateTimeHeader,
         dateTimeBody: state.dateTimeBody,
@@ -342,7 +348,7 @@ export default (
           state.isConnect = true;
           clearTimeout(state.tick);
           state.tick = null;
-          state.dateTimeConnect = Date.now();
+          state.timeConnect = performance.now() - state.timeStart;
           handleConnect();
         },
         onData: async (chunk) => {
