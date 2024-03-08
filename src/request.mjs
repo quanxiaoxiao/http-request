@@ -210,6 +210,7 @@ export default (
           state.bytesBody += bodyChunk.length;
           if (onBody) {
             if (onBody.write) {
+              assert(onBody.writable);
               if (onBody.write(bodyChunk) === false) {
                 state.connector.pause();
               }
@@ -234,6 +235,7 @@ export default (
             state.isBindDrainOnBody = false;
             onBody.off('drain', handleDrainOnBody);
             onBody.off('close', handleCloseOnBody);
+            onBody.end();
           }
           if (signal) {
             signal.removeEventListener('abort', handleAbortOnSignal);
@@ -402,7 +404,8 @@ export default (
       if (signal) {
         signal.addEventListener('abort', handleAbortOnSignal, { once: true });
       }
-      if (onBody && onBody.writable) {
+      if (onBody && onBody.write) {
+        assert(onBody.writable);
         state.isBindDrainOnBody = true;
         onBody.on('drain', handleDrainOnBody);
         onBody.once('close', handleCloseOnBody);

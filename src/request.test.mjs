@@ -1,6 +1,8 @@
 import assert from 'node:assert';
 import net from 'node:net';
 import { PassThrough } from 'node:stream';
+import path from 'node:path';
+import fs from 'node:fs';
 import { test, mock } from 'node:test';
 import _ from 'lodash';
 import { encodeHttp, decodeHttpRequest } from '@quanxiaoxiao/http-utils';
@@ -1098,5 +1100,61 @@ test('request remote socket close, stream body unbind events 2', async () => {
   assert(!body.eventNames().includes('close'));
   await waitFor(100);
   server.close();
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+});
+
+test('request onBody with stream', async () => {
+  const port = getPort();
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    const encode = encodeHttp({
+      headers: {
+        name: 'quan',
+      },
+    });
+    socket.on('data', () => {});
+    const content = 'aabbccddeee';
+    let i = 0;
+    setTimeout(() => {
+      while (i < 100) {
+        socket.write(encode(Buffer.from(`${_.times(1000).map(() => content).join('')}:${i}`)));
+        i++;
+      }
+      socket.write(encode());
+    }, 20);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  const onBody = new PassThrough();
+
+  const onRequest = mock.fn(() => {
+    assert(onBody.eventNames().includes('drain'));
+    assert(onBody.eventNames().includes('close'));
+  });
+
+  onBody.on('data', () => {
+  });
+
+  const ret = await request(
+    {
+      path: '/aaaaa',
+      headers: {
+        name: 'aa',
+      },
+      body: null,
+      onRequest,
+      onBody,
+    },
+    connect(port),
+  );
+
+  server.close();
+
+  assert.equal(ret.body.toString(), '');
+  assert(!onBody.eventNames().includes('drain'));
+  assert(!onBody.eventNames().includes('close'));
+  await waitFor(100);
+  assert(onBody.destroyed);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
