@@ -954,3 +954,62 @@ test('request request options invalid 2', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   assert.equal(onRequest.mock.calls.length, 1);
 });
+
+test('request body stream', async () => {
+  const port = getPort();
+  const handleCloseOnSocket = mock.fn(() => {
+  });
+  const server = net.createServer((socket) => {
+    const decode = decodeHttpRequest();
+    socket.on('data', (chunk) => {
+      decode(chunk).then((ret) => {
+        if (ret.complete) {
+          socket.write(encodeHttp({
+            headers: {
+              server: 'quan',
+            },
+            body: 'ok',
+          }));
+        }
+      });
+    });
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+  const content = 'aaabbbccc';
+  const body = new PassThrough();
+  let i = 0;
+  let isPause = false;
+  const onRequest = mock.fn(() => {
+    setTimeout(() => {
+      assert(!body.isPaused());
+      body.once('pause', () => {
+        isPause = true;
+      });
+      body.once('resume', () => {
+        setTimeout(() => {
+          body.end();
+        }, 10);
+      });
+      while (!isPause) {
+        body.write(`${_.times(1000).map(() => content).join('')}:${i}`);
+        i++;
+      }
+    }, 10);
+  });
+  await request(
+    {
+      headers: {
+        name: 'aa',
+      },
+      onRequest,
+      body,
+    },
+    connect(port),
+  );
+  await waitFor(100);
+  assert(!body.eventNames().includes('pause'));
+  assert(!body.eventNames().includes('resume'));
+  assert.equal(onRequest.mock.calls.length, 1);
+  server.close();
+});

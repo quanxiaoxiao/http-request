@@ -37,6 +37,7 @@ export default (
   }
 
   const socket = getConnect();
+
   assert(socket && socket instanceof net.Socket);
 
   return new Promise((resolve, reject) => {
@@ -154,6 +155,7 @@ export default (
 
     function handleEndOnRequestBody() {
       requestOptions.body.off('close', handleCloseOnRequestBody);
+      requestOptions.body.off('data', handleDataOnRequestBody);
       requestOptions.body.off('error', handleErrorOnRequestBody);
       if (state.isActive) {
         outgoing(state.encodeRequest());
