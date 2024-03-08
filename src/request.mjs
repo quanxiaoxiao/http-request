@@ -246,7 +246,6 @@ export default (
             state.isBindDrainOnBody = false;
             onBody.off('drain', handleDrainOnBody);
             onBody.off('close', handleCloseOnBody);
-            onBody.end();
           }
           if (signal) {
             signal.removeEventListener('abort', handleAbortOnSignal);

@@ -1154,7 +1154,9 @@ test('request onBody with stream', async () => {
   assert(!onBody.eventNames().includes('drain'));
   assert(!onBody.eventNames().includes('close'));
   await waitFor(100);
-  assert(onBody.destroyed);
+  assert(!onBody.destroyed);
+  assert(onBody.writable);
+  onBody.end();
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   const buf = fs.readFileSync(pathname);
   assert(/:999$/.test(buf.toString()));
