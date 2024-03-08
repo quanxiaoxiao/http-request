@@ -60,10 +60,12 @@ export default (
       headersRaw: [],
       encodeRequest: null,
 
+      dateTime: Date.now(),
       timeOnStart: performance.now(),
       timeOnConnect: null,
       timeOnRequestSend: null,
       timeOnResponse: null,
+      timeOnResponseStartLine: null,
       timeOnResponseHeader: null,
       timeOnResponseBody: null,
       timeOnResponseEnd: null,
@@ -197,6 +199,7 @@ export default (
           state.statusCode = ret.statusCode;
           state.httpVersion = ret.httpVersion;
           state.statusText = ret.statusText;
+          state.timeOnResponseStartLine = calcTime();
           if (onStartLine) {
             await onStartLine(getState());
           }
@@ -329,6 +332,14 @@ export default (
         headersRaw: state.headersRaw,
         headers: state.headers,
         body: state.body,
+        dateTime: state.dateTime,
+        timeOnConnect: state.timeOnConnect,
+        timeOnRequestSend: state.timeOnRequestSend,
+        timeOnResponse: state.timeOnResponse,
+        timeOnResponseStartLine: state.timeOnResponseStartLine,
+        timeOnResponseHeader: state.timeOnResponseHeader,
+        timeOnResponseBody: state.timeOnResponseBody,
+        timeOnResponseEnd: state.timeOnResponseEnd,
       };
     }
 
