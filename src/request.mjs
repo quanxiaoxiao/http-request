@@ -87,7 +87,6 @@ export default (
       if (state.isBindDrainOnBody) {
         state.isBindDrainOnBody = false;
         onBody.off('drain', handleDrainOnBody);
-        onBody.off('error', handleErrorOnBody);
         onBody.off('close', handleCloseOnBody);
         if (!onBody.destroyed) {
           onBody.destroy();
@@ -309,19 +308,8 @@ export default (
       if (state.isBindDrainOnBody) {
         state.isBindDrainOnBody = false;
         onBody.off('drain', handleDrainOnBody);
-        onBody.off('error', handleErrorOnBody);
       }
       handleError(new Error('onBody stream close error'));
-      state.connector();
-    }
-
-    function handleErrorOnBody(error) {
-      if (state.isBindDrainOnBody) {
-        state.isBindDrainOnBody = false;
-        onBody.off('drain', handleDrainOnBody);
-        onBody.off('close', handleErrorOnBody);
-      }
-      handleError(error);
       state.connector();
     }
 
@@ -424,7 +412,6 @@ export default (
         state.isBindDrainOnBody = true;
         onBody.on('drain', handleDrainOnBody);
         onBody.once('close', handleCloseOnBody);
-        onBody.once('error', handleErrorOnBody);
       }
     }
   });

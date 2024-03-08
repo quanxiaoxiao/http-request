@@ -1251,10 +1251,11 @@ test('request onBody with stream close 2', async () => {
     setTimeout(() => {
       let i = 0;
       const tick = setInterval(() => {
-        socket.write(encode(Buffer.from(`${_.times(1000).map(() => content).join('')}:${i}`)));
         i++;
         if (isClose) {
           clearInterval(tick);
+        } else {
+          socket.write(encode(Buffer.from(`${_.times(1000).map(() => content).join('')}:${i}`)));
         }
       });
     }, 20);
@@ -1266,13 +1267,15 @@ test('request onBody with stream close 2', async () => {
 
   const handleDrain = () => {
     i++;
-    if (i >= 12) {
+    if (i >= 50) {
       onBody.off('drain', handleDrain);
       isClose = true;
       assert(!onBody.destroyed);
       onBody.destroy();
     }
   };
+
+  onBody.on('error', () => {});
 
   onBody.on('drain', handleDrain);
 
