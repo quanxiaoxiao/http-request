@@ -957,8 +957,7 @@ test('request request options invalid 2', async () => {
 
 test('request body stream', async () => {
   const port = getPort();
-  const handleCloseOnSocket = mock.fn(() => {
-  });
+  const handleCloseOnSocket = mock.fn(() => {});
   const server = net.createServer((socket) => {
     const decode = decodeHttpRequest();
     socket.on('data', (chunk) => {
@@ -1012,4 +1011,92 @@ test('request body stream', async () => {
   assert(!body.eventNames().includes('resume'));
   assert.equal(onRequest.mock.calls.length, 1);
   server.close();
+});
+
+test('request remote socket close, stream body unbind events', async () => {
+  const port = getPort();
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    socket.on('close', handleCloseOnSocket);
+    setTimeout(() => {
+      socket.destroy();
+    }, 100);
+  });
+  server.listen(port);
+  const body = new PassThrough();
+  const onRequest = mock.fn(() => {
+    setTimeout(() => {
+      assert(body.eventNames().includes('end'));
+      assert(body.eventNames().includes('data'));
+      assert(body.eventNames().includes('error'));
+      assert(body.eventNames().includes('close'));
+    }, 10);
+  });
+  try {
+    await request(
+      {
+        headers: {
+          name: 'aa',
+        },
+        onRequest,
+        body,
+      },
+      connect(port),
+    );
+    throw new Error('xxxx');
+  } catch (error) {
+    assert(error instanceof errors.SocketCloseError);
+  }
+  assert(!body.eventNames().includes('end'));
+  assert(!body.eventNames().includes('data'));
+  assert(!body.eventNames().includes('error'));
+  assert(!body.eventNames().includes('close'));
+  await waitFor(100);
+  server.close();
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+});
+
+test('request remote socket close, stream body unbind events 2', async () => {
+  const port = getPort();
+  const handleCloseOnSocket = mock.fn(() => {});
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+  const controller = new AbortController();
+  const body = new PassThrough();
+  const onRequest = mock.fn(() => {
+    setTimeout(() => {
+      assert(body.eventNames().includes('end'));
+      assert(body.eventNames().includes('data'));
+      assert(body.eventNames().includes('error'));
+      assert(body.eventNames().includes('close'));
+      controller.abort();
+    }, 10);
+  });
+  try {
+    await request(
+      {
+        headers: {
+          name: 'aa',
+        },
+        signal: controller.signal,
+        onRequest,
+        body,
+      },
+      connect(port),
+    );
+    throw new Error('xxxx');
+  } catch (error) {
+    assert.equal(error.message, 'abort');
+  }
+  assert(!body.eventNames().includes('end'));
+  assert(!body.eventNames().includes('data'));
+  assert(!body.eventNames().includes('error'));
+  assert(!body.eventNames().includes('close'));
+  await waitFor(100);
+  server.close();
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
