@@ -48,11 +48,6 @@ export default (
       isBindDrainOnBody: false,
       tick: null,
       connector: null,
-      dateTimeCreate: Date.now(),
-      dateTimeResponse: null,
-      dateTimeHeader: null,
-      dateTimeBody: null,
-      dateTimeEnd: null,
       bytesIncoming: 0,
       bytesOutgoing: 0,
       bytesBody: 0,
@@ -80,6 +75,10 @@ export default (
       headers,
       body,
     };
+
+    function calcTime() {
+      return performance.now() - state.timeStart;
+    }
 
     function emitError(error) {
       if (state.isActive) {
@@ -139,7 +138,7 @@ export default (
           }
         } else {
           try {
-            state.timeRequestSend = performance.now() - state.timeStart;
+            state.timeRequestSend = calcTime();
             outgoing(encodeHttp(requestOptions));
           } catch (error) {
             state.connector();
@@ -204,7 +203,7 @@ export default (
         },
         onHeader: async (ret) => {
           assert(state.isActive);
-          state.dateTimeHeader = Date.now();
+          state.timeHeader = calcTime();
           state.headers = ret.headers;
           state.headersRaw = ret.headersRaw;
           if (onHeader) {
@@ -213,8 +212,8 @@ export default (
         },
         onBody: (bodyChunk) => {
           assert(state.isActive);
-          if (state.dateTimeBody == null) {
-            state.dateTimeBody = Date.now();
+          if (state.timeBody == null) {
+            state.timeBody = calcTime();
           }
           state.bytesBody += bodyChunk.length;
           if (onBody) {
@@ -236,9 +235,9 @@ export default (
         onEnd: () => {
           assert(state.isActive);
           state.isActive = false;
-          state.dateTimeEnd = Date.now();
-          if (state.dateTimeBody == null) {
-            state.dateTimeBody = state.dateTimeEnd;
+          state.timeEnd = calcTime();
+          if (state.timeBody == null) {
+            state.timeBody = state.timeEnd;
           }
           if (state.isBindDrainOnBody) {
             state.isBindDrainOnBody = false;
@@ -274,7 +273,7 @@ export default (
           onHeader: (chunkRequestHeaders) => {
             assert(!state.isRequestBodyAttachEvents);
             if (state.isActive) {
-              state.timeRequestSend = performance.now() - state.timeStart;
+              state.timeRequestSend = calcTime();
               outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
               state.isRequestBodyAttachEvents = true;
               requestOptions.body.once('error', handleErrorOnRequestBody);
@@ -321,11 +320,6 @@ export default (
 
     function getState() {
       return {
-        dateTimeCreate: state.dateTimeCreate,
-        dateTimeResponse: state.dateTimeResponse,
-        dateTimeHeader: state.dateTimeHeader,
-        dateTimeBody: state.dateTimeBody,
-        dateTimeEnd: state.dateTimeEnd,
         bytesIncoming: state.bytesIncoming,
         bytesOutgoing: state.bytesOutgoing,
         bytesBody: state.bytesBody,
@@ -344,7 +338,7 @@ export default (
           assert(state.isActive);
           assert(!state.isConnect);
           state.isConnect = true;
-          state.timeConnect = performance.now() - state.timeStart;
+          state.timeConnect = calcTime();
           clearTimeout(state.tick);
           state.tick = null;
           handleConnect();
@@ -358,7 +352,7 @@ export default (
             const size = chunk.length;
             state.bytesIncoming += size;
             if (!state.decode) {
-              state.dateTimeResponse = Date.now();
+              state.timeResponse = calcTime();
               bindResponseDecode();
             }
             if (size > 0) {
