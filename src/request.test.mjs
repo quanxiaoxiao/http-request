@@ -581,7 +581,7 @@ test('request onBody with stream close', async () => {
     );
     throw new Error('xxxx');
   } catch (error) {
-    assert.equal(error.message, 'body stream close error');
+    assert.equal(error.message, 'onBody stream close error');
   }
   assert(onBody.destroyed);
   server.close();
@@ -1106,6 +1106,7 @@ test('request remote socket close, stream body unbind events 2', async () => {
 test('request onBody with stream', async () => {
   const port = getPort();
   const handleCloseOnSocket = mock.fn(() => {});
+  const content = 'aabbccddeee';
   const server = net.createServer((socket) => {
     const encode = encodeHttp({
       headers: {
@@ -1113,10 +1114,9 @@ test('request onBody with stream', async () => {
       },
     });
     socket.on('data', () => {});
-    const content = 'aabbccddeee';
     let i = 0;
     setTimeout(() => {
-      while (i < 100) {
+      while (i < 1000) {
         socket.write(encode(Buffer.from(`${_.times(1000).map(() => content).join('')}:${i}`)));
         i++;
       }
@@ -1156,5 +1156,7 @@ test('request onBody with stream', async () => {
   await waitFor(100);
   assert(onBody.destroyed);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  const buf = fs.readFileSync(pathname);
+  assert(/:999$/.test(buf.toString()));
   fs.unlinkSync(pathname);
 });

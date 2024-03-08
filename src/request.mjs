@@ -306,7 +306,7 @@ export default (
         state.isBindDrainOnBody = false;
         onBody.off('drain', handleDrainOnBody);
       }
-      handleError(new Error('body stream close error'));
+      handleError(new Error('onBody stream close error'));
       state.connector();
     }
 
