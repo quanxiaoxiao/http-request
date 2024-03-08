@@ -60,13 +60,13 @@ export default (
       headersRaw: [],
       encodeRequest: null,
 
-      timeStart: performance.now(),
-      timeConnect: null,
-      timeRequestSend: null,
-      timeResponse: null,
-      timeHeader: null,
-      timeBody: null,
-      timeEnd: null,
+      timeOnStart: performance.now(),
+      timeOnConnect: null,
+      timeOnRequestSend: null,
+      timeOnResponse: null,
+      timeOnHeader: null,
+      timeOnBody: null,
+      timeOnEnd: null,
     };
 
     const requestOptions = {
@@ -77,7 +77,7 @@ export default (
     };
 
     function calcTime() {
-      return performance.now() - state.timeStart;
+      return performance.now() - state.timeOnStart;
     }
 
     function emitError(error) {
@@ -138,7 +138,7 @@ export default (
           }
         } else {
           try {
-            state.timeRequestSend = calcTime();
+            state.timeOnRequestSend = calcTime();
             outgoing(encodeHttp(requestOptions));
           } catch (error) {
             state.connector();
@@ -203,7 +203,7 @@ export default (
         },
         onHeader: async (ret) => {
           assert(state.isActive);
-          state.timeHeader = calcTime();
+          state.timeOnHeader = calcTime();
           state.headers = ret.headers;
           state.headersRaw = ret.headersRaw;
           if (onHeader) {
@@ -212,8 +212,8 @@ export default (
         },
         onBody: (bodyChunk) => {
           assert(state.isActive);
-          if (state.timeBody == null) {
-            state.timeBody = calcTime();
+          if (state.timeOnBody == null) {
+            state.timeOnBody = calcTime();
           }
           state.bytesBody += bodyChunk.length;
           if (onBody) {
@@ -235,9 +235,9 @@ export default (
         onEnd: () => {
           assert(state.isActive);
           state.isActive = false;
-          state.timeEnd = calcTime();
-          if (state.timeBody == null) {
-            state.timeBody = state.timeEnd;
+          state.timeOnEnd = calcTime();
+          if (state.timeOnBody == null) {
+            state.timeOnBody = state.timeOnEnd;
           }
           if (state.isBindDrainOnBody) {
             state.isBindDrainOnBody = false;
@@ -273,7 +273,7 @@ export default (
           onHeader: (chunkRequestHeaders) => {
             assert(!state.isRequestBodyAttachEvents);
             if (state.isActive) {
-              state.timeRequestSend = calcTime();
+              state.timeOnRequestSend = calcTime();
               outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
               state.isRequestBodyAttachEvents = true;
               requestOptions.body.once('error', handleErrorOnRequestBody);
@@ -338,21 +338,21 @@ export default (
           assert(state.isActive);
           assert(!state.isConnect);
           state.isConnect = true;
-          state.timeConnect = calcTime();
+          state.timeOnConnect = calcTime();
           clearTimeout(state.tick);
           state.tick = null;
           handleConnect();
         },
         onData: async (chunk) => {
           assert(state.isActive);
-          if (state.timeRequestSend == null) {
+          if (state.timeOnRequestSend == null) {
             state.connector();
             handleError(new Error('request is not send, but received chunk'));
           } else {
             const size = chunk.length;
             state.bytesIncoming += size;
             if (!state.decode) {
-              state.timeResponse = calcTime();
+              state.timeOnResponse = calcTime();
               bindResponseDecode();
             }
             if (size > 0) {
