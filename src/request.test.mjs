@@ -1126,14 +1126,13 @@ test('request onBody with stream', async () => {
   });
   server.listen(port);
 
-  const onBody = new PassThrough();
+  const filename = `test_${Date.now()}_1`;
+  const pathname = path.resolve(process.cwd(), filename);
+  const onBody = fs.createWriteStream(pathname);
 
   const onRequest = mock.fn(() => {
     assert(onBody.eventNames().includes('drain'));
     assert(onBody.eventNames().includes('close'));
-  });
-
-  onBody.on('data', () => {
   });
 
   const ret = await request(
@@ -1157,4 +1156,5 @@ test('request onBody with stream', async () => {
   await waitFor(100);
   assert(onBody.destroyed);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  fs.unlinkSync(pathname);
 });
