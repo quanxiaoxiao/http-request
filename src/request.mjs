@@ -88,6 +88,9 @@ export default (
         state.isBindDrainOnBody = false;
         onBody.off('drain', handleDrainOnBody);
         onBody.off('close', handleCloseOnBody);
+        if (!onBody.destroyed) {
+          onBody.destroy();
+        }
       }
     }
 

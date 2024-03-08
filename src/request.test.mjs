@@ -626,7 +626,7 @@ test('request onBody with stream, at onHeader trigger error', async () => {
   assert(!onBody.eventNames().includes('close'));
   server.close();
   await waitFor(100);
-  assert(!onBody.destroyed);
+  assert(onBody.destroyed);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
 
@@ -1158,5 +1158,77 @@ test('request onBody with stream', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   const buf = fs.readFileSync(pathname);
   assert(/:999$/.test(buf.toString()));
+  fs.unlinkSync(pathname);
+});
+
+test('request onBody with stream close', async () => {
+  const port = getPort();
+  const handleCloseOnSocket = mock.fn(() => {});
+  const content = 'aabbccddeee';
+  const filename = `test_${Date.now()}_2`;
+  const pathname = path.resolve(process.cwd(), filename);
+  const onBody = fs.createWriteStream(pathname);
+  let isClose = false;
+  const server = net.createServer((socket) => {
+    const encode = encodeHttp({
+      headers: {
+        name: 'quan',
+      },
+    });
+    socket.on('data', () => {});
+    setTimeout(() => {
+      let i = 0;
+      const tick = setInterval(() => {
+        socket.write(encode(Buffer.from(`${_.times(1000).map(() => content).join('')}:${i}`)));
+        i++;
+        if (isClose) {
+          clearInterval(tick);
+          setTimeout(() => {
+            socket.destroy();
+          }, 100);
+        }
+      });
+    }, 20);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  let i = 0;
+
+  const handleDrain = () => {
+    i++;
+    if (i >= 12) {
+      onBody.off('drain', handleDrain);
+      isClose = true;
+    }
+  };
+
+  onBody.on('drain', handleDrain);
+
+  try {
+    await request(
+      {
+        path: '/aaaaa',
+        headers: {
+          name: 'aa',
+        },
+        body: null,
+        onBody,
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert(isClose);
+    assert(error instanceof errors.SocketCloseError);
+  }
+
+  server.close();
+
+  assert(!onBody.eventNames().includes('drain'));
+  assert(!onBody.eventNames().includes('close'));
+  await waitFor(100);
+  assert(onBody.destroyed);
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   fs.unlinkSync(pathname);
 });
