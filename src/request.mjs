@@ -44,6 +44,7 @@ export default (
     const state = {
       isActive: true,
       isConnect: false,
+      isRequestBodyAttachEvents: false,
       isBindDrainOnBody: false,
       tick: null,
       connector: null,
@@ -100,11 +101,7 @@ export default (
             onOutgoing(chunk);
           }
           const ret = state.connector.write(chunk);
-          if (!ret
-              && requestOptions.body
-              && requestOptions.body.pipe
-              && !requestOptions.body.isPaused()
-          ) {
+          if (!ret && state.isRequestBodyAttachEvents) {
             requestOptions.body.pause();
           }
         } catch (error) {
@@ -149,11 +146,11 @@ export default (
         outgoing(state.encodeRequest(chunk));
       } else {
         requestOptions.body.off('data', handleDataOnRequestBody);
-        closeRequestStream();
       }
     }
 
     function handleEndOnRequestBody() {
+      state.isRequestBodyAttachEvents = false;
       requestOptions.body.off('close', handleCloseOnRequestBody);
       requestOptions.body.off('data', handleDataOnRequestBody);
       requestOptions.body.off('error', handleErrorOnRequestBody);
@@ -163,6 +160,7 @@ export default (
     }
 
     function handleCloseOnRequestBody() {
+      state.isRequestBodyAttachEvents = false;
       requestOptions.body.off('end', handleEndOnRequestBody);
       requestOptions.body.off('data', handleDataOnRequestBody);
       requestOptions.body.off('error', handleErrorOnRequestBody);
@@ -175,12 +173,13 @@ export default (
       state.connector();
     }
 
-    function closeRequestStream() {
-      if (requestOptions.body
-        && requestOptions.body.pipe
-        && !requestOptions.body.destroyed
-      ) {
-        requestOptions.body.destroy();
+    function clearRequestBodyStreamEvents() {
+      if (state.isRequestBodyAttachEvents) {
+        state.isRequestBodyAttachEvents = false;
+        requestOptions.body.off('error', handleErrorOnRequestBody);
+        requestOptions.body.off('close', handleCloseOnRequestBody);
+        requestOptions.body.off('end', handleEndOnRequestBody);
+        requestOptions.body.off('data', handleDataOnRequestBody);
       }
     }
 
@@ -247,7 +246,7 @@ export default (
 
     function handleError(error) {
       emitError(error);
-      closeRequestStream();
+      clearRequestBodyStreamEvents();
       if (state.tick != null) {
         clearTimeout(state.tick);
         state.tick = null;
@@ -262,9 +261,11 @@ export default (
           headers: requestOptions.headers,
           body: requestOptions.body,
           onHeader: (chunkRequestHeaders) => {
+            assert(!state.isRequestBodyAttachEvents);
             if (state.isActive) {
               state.dateTimeRequestSend = Date.now();
               outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
+              state.isRequestBodyAttachEvents = true;
               requestOptions.body.once('error', handleErrorOnRequestBody);
               requestOptions.body.once('close', handleCloseOnRequestBody);
               requestOptions.body.once('end', handleEndOnRequestBody);
@@ -285,7 +286,7 @@ export default (
       if (state.isActive) {
         state.isActive = false;
         state.connector();
-        closeRequestStream();
+        clearRequestBodyStreamEvents();
         if (state.tick) {
           clearTimeout(state.tick);
           state.tick = null;
@@ -366,8 +367,7 @@ export default (
         },
         onDrain: () => {
           if (state.isActive
-            && requestOptions.body
-            && requestOptions.body.pipe
+            && state.isRequestBodyAttachEvents
             && requestOptions.body.isPaused()
           ) {
             requestOptions.body.resume();
@@ -394,7 +394,7 @@ export default (
         state.tick = null;
         if (state.isActive) {
           state.connector();
-          closeRequestStream();
+          clearRequestBodyStreamEvents();
           emitError(new SocketConnectTimeoutError());
         }
       }, 1000 * 50);
