@@ -64,9 +64,9 @@ export default (
       timeOnConnect: null,
       timeOnRequestSend: null,
       timeOnResponse: null,
-      timeOnHeader: null,
-      timeOnBody: null,
-      timeOnEnd: null,
+      timeOnResponseHeader: null,
+      timeOnResponseBody: null,
+      timeOnResponseEnd: null,
     };
 
     const requestOptions = {
@@ -203,7 +203,7 @@ export default (
         },
         onHeader: async (ret) => {
           assert(state.isActive);
-          state.timeOnHeader = calcTime();
+          state.timeOnResponseHeader = calcTime();
           state.headers = ret.headers;
           state.headersRaw = ret.headersRaw;
           if (onHeader) {
@@ -212,8 +212,8 @@ export default (
         },
         onBody: (bodyChunk) => {
           assert(state.isActive);
-          if (state.timeOnBody == null) {
-            state.timeOnBody = calcTime();
+          if (state.timeOnResponseBody == null) {
+            state.timeOnResponseBody = calcTime();
           }
           state.bytesBody += bodyChunk.length;
           if (onBody) {
@@ -235,9 +235,9 @@ export default (
         onEnd: () => {
           assert(state.isActive);
           state.isActive = false;
-          state.timeOnEnd = calcTime();
-          if (state.timeOnBody == null) {
-            state.timeOnBody = state.timeOnEnd;
+          state.timeOnResponseEnd = calcTime();
+          if (state.timeOnResponseBody == null) {
+            state.timeOnResponseBody = state.timeOnResponseEnd;
           }
           if (state.isBindDrainOnBody) {
             state.isBindDrainOnBody = false;
