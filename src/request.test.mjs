@@ -1308,3 +1308,79 @@ test('request onBody with stream close 2', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   fs.unlinkSync(pathname);
 });
+
+test('request onBody with stream by signal', async () => {
+  const port = getPort();
+  const handleCloseOnSocket = mock.fn(() => {});
+  const content = 'aabbccddeee';
+  const filename = `test_${Date.now()}_3`;
+  const pathname = path.resolve(process.cwd(), filename);
+  const onBody = fs.createWriteStream(pathname);
+  const controller = new AbortController();
+  const server = net.createServer((socket) => {
+    const encode = encodeHttp({
+      headers: {
+        name: 'quan',
+      },
+    });
+    socket.on('data', () => {});
+    setTimeout(() => {
+      let i = 0;
+      const tick = setInterval(() => {
+        i++;
+        if (controller.signal.aborted) {
+          clearInterval(tick);
+        } else {
+          socket.write(encode(Buffer.from(`${_.times(1000).map(() => content).join('')}:${i}`)));
+        }
+      });
+    }, 20);
+    socket.on('close', handleCloseOnSocket);
+  });
+  server.listen(port);
+
+  let i = 0;
+
+  const handleDrain = () => {
+    i++;
+    if (i >= 50) {
+      onBody.off('drain', handleDrain);
+      assert(!onBody.destroyed);
+      controller.abort();
+    }
+  };
+
+  onBody.on('error', () => {});
+
+  onBody.on('drain', handleDrain);
+
+  try {
+    await request(
+      {
+        path: '/aaaaa',
+        headers: {
+          name: 'aa',
+        },
+        signal: controller.signal,
+        body: null,
+        onBody,
+      },
+      connect(port),
+    );
+    throw new Error('xxx');
+  } catch (error) {
+    assert.equal(error.message, 'abort');
+  }
+
+  server.close();
+
+  assert(!onBody.eventNames().includes('drain'));
+  assert(!onBody.eventNames().includes('close'));
+  await waitFor(100);
+  assert(!onBody.destroyed);
+  assert(controller.signal.aborted);
+  onBody.end();
+  assert.equal(handleCloseOnSocket.mock.calls.length, 1);
+  await waitFor(10);
+  fs.unlinkSync(pathname);
+});
