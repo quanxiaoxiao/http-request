@@ -49,7 +49,6 @@ export default (
       tick: null,
       connector: null,
       dateTimeCreate: Date.now(),
-      dateTimeRequestSend: null,
       dateTimeResponse: null,
       dateTimeHeader: null,
       dateTimeBody: null,
@@ -140,7 +139,7 @@ export default (
           }
         } else {
           try {
-            state.dateTimeRequestSend = Date.now();
+            state.timeRequestSend = performance.now() - state.timeStart;
             outgoing(encodeHttp(requestOptions));
           } catch (error) {
             state.connector();
@@ -275,7 +274,7 @@ export default (
           onHeader: (chunkRequestHeaders) => {
             assert(!state.isRequestBodyAttachEvents);
             if (state.isActive) {
-              state.dateTimeRequestSend = Date.now();
+              state.timeRequestSend = performance.now() - state.timeStart;
               outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
               state.isRequestBodyAttachEvents = true;
               requestOptions.body.once('error', handleErrorOnRequestBody);
@@ -327,7 +326,6 @@ export default (
         dateTimeHeader: state.dateTimeHeader,
         dateTimeBody: state.dateTimeBody,
         dateTimeEnd: state.dateTimeEnd,
-        dateTimeRequestSend: state.dateTimeRequestSend,
         bytesIncoming: state.bytesIncoming,
         bytesOutgoing: state.bytesOutgoing,
         bytesBody: state.bytesBody,
@@ -346,14 +344,14 @@ export default (
           assert(state.isActive);
           assert(!state.isConnect);
           state.isConnect = true;
+          state.timeConnect = performance.now() - state.timeStart;
           clearTimeout(state.tick);
           state.tick = null;
-          state.timeConnect = performance.now() - state.timeStart;
           handleConnect();
         },
         onData: async (chunk) => {
           assert(state.isActive);
-          if (state.dateTimeRequestSend == null) {
+          if (state.timeRequestSend == null) {
             state.connector();
             handleError(new Error('request is not send, but received chunk'));
           } else {
