@@ -148,8 +148,8 @@ export default (
             pipe();
           }
         } else {
+          state.timeOnRequestSend = calcTime();
           try {
-            state.timeOnRequestSend = calcTime();
             outgoing(encodeHttp(state.request));
           } catch (error) {
             state.connector();
@@ -188,6 +188,10 @@ export default (
     }
 
     function handleErrorOnRequestBody(error) {
+      state.isRequestBodyAttachEvents = false;
+      state.request.body.off('end', handleEndOnRequestBody);
+      state.request.body.off('data', handleDataOnRequestBody);
+      state.request.body.off('close', handleCloseOnRequestBody);
       emitError(error);
       state.connector();
     }
