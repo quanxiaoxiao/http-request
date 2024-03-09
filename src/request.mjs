@@ -52,8 +52,6 @@ export default (
       bytesOutgoing: 0,
       decode: null,
       statusCode: null,
-      httpVersion: null,
-      statusText: null,
       headers: {},
       headersRaw: [],
       encodeRequest: null,
@@ -203,9 +201,9 @@ export default (
     function bindResponseDecode() {
       state.decode = decodeHttpResponse({
         onStartLine: async (ret) => {
-          state.statusCode = ret.statusCode;
-          state.httpVersion = ret.httpVersion;
-          state.statusText = ret.statusText;
+          state.response.statusCode = ret.statusCode;
+          state.response.httpVersion = ret.httpVersion;
+          state.response.statusText = ret.statusText;
           state.timeOnResponseStartLine = calcTime();
           if (onStartLine) {
             await onStartLine(getState());
@@ -335,9 +333,9 @@ export default (
       return {
         bytesIncoming: state.bytesIncoming,
         bytesOutgoing: state.bytesOutgoing,
-        httpVersion: state.httpVersion,
-        statusCode: state.statusCode,
-        statusText: state.statusText,
+        httpVersion: state.response.httpVersion,
+        statusCode: state.response.statusCode,
+        statusText: state.response.statusText,
         headersRaw: state.headersRaw,
         headers: state.headers,
         body: state.response.body,
