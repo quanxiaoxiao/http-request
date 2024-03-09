@@ -16,7 +16,6 @@ export default async ({
   onStartLine,
   onHeader,
   onRequest,
-  onResponse,
 }) => {
   const responseItem = await request(
     {
@@ -28,11 +27,10 @@ export default async ({
         body,
       }),
       signal,
-      onBody,
       onStartLine,
       onHeader,
       onRequest,
-      onResponse,
+      onBody,
       onIncoming,
       onOutgoing,
     },
