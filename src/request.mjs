@@ -91,6 +91,7 @@ export default (
     }
 
     function emitError(error) {
+      clearRequestBodyStreamEvents();
       if (state.isResponseOnBodyAttachEvents) {
         state.isResponseOnBodyAttachEvents = false;
         onBody.off('drain', handleDrainOnBody);
@@ -99,7 +100,6 @@ export default (
           onBody.destroy();
         }
       }
-      clearRequestBodyStreamEvents();
       if (state.isActive) {
         state.isActive = false;
         if (state.connector && signal && !signal.aborted) {
