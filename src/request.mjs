@@ -45,7 +45,7 @@ export default (
       isActive: true,
       isConnect: false,
       isRequestBodyAttachEvents: false,
-      isBindDrainOnBody: false,
+      isResponseOnBodyAttachEvents: false,
       tick: null,
       connector: null,
       bytesIncoming: 0,
@@ -90,8 +90,8 @@ export default (
         const errObj = typeof error === 'string' ? new Error(error) : error;
         reject(errObj);
       }
-      if (state.isBindDrainOnBody) {
-        state.isBindDrainOnBody = false;
+      if (state.isResponseOnBodyAttachEvents) {
+        state.isResponseOnBodyAttachEvents = false;
         onBody.off('drain', handleDrainOnBody);
         onBody.off('close', handleCloseOnBody);
         if (!onBody.destroyed) {
@@ -240,8 +240,8 @@ export default (
           if (state.timeOnResponseBody == null) {
             state.timeOnResponseBody = state.timeOnResponseEnd;
           }
-          if (state.isBindDrainOnBody) {
-            state.isBindDrainOnBody = false;
+          if (state.isResponseOnBodyAttachEvents) {
+            state.isResponseOnBodyAttachEvents = false;
             onBody.off('drain', handleDrainOnBody);
             onBody.off('close', handleCloseOnBody);
           }
@@ -298,8 +298,8 @@ export default (
         clearTimeout(state.tick);
         state.tick = null;
       }
-      if (state.isBindDrainOnBody) {
-        state.isBindDrainOnBody = false;
+      if (state.isResponseOnBodyAttachEvents) {
+        state.isResponseOnBodyAttachEvents = false;
         onBody.off('drain', handleDrainOnBody);
         onBody.off('close', handleCloseOnBody);
       }
@@ -315,8 +315,8 @@ export default (
     }
 
     function handleCloseOnBody() {
-      if (state.isBindDrainOnBody) {
-        state.isBindDrainOnBody = false;
+      if (state.isResponseOnBodyAttachEvents) {
+        state.isResponseOnBodyAttachEvents = false;
         onBody.off('drain', handleDrainOnBody);
       }
       handleError(new Error('onBody stream close error'));
@@ -420,7 +420,7 @@ export default (
       }
       if (onBody && onBody.write) {
         assert(onBody.writable);
-        state.isBindDrainOnBody = true;
+        state.isResponseOnBodyAttachEvents = true;
         onBody.on('drain', handleDrainOnBody);
         onBody.once('close', handleCloseOnBody);
       }
