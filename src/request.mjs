@@ -19,17 +19,13 @@ export default (
   assert(typeof getConnect === 'function');
 
   const {
-    path = '/',
-    method = 'GET',
-    body = null,
-    headers,
+    signal,
     onRequest,
     onStartLine,
     onHeader,
     onBody,
     onOutgoing,
     onIncoming,
-    signal,
   } = options;
 
   if (signal) {
@@ -64,10 +60,10 @@ export default (
       timeOnResponseEnd: null,
 
       request: {
-        path,
-        method,
-        headers,
-        body,
+        path: options.path || '/',
+        method: options.method || 'GET',
+        headers: options.headers || {},
+        body: options.body || null,
       },
 
       response: {
