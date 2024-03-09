@@ -81,14 +81,6 @@ export default (
     }
 
     function emitError(error) {
-      if (state.isActive) {
-        state.isActive = false;
-        if (state.connector && signal && !signal.aborted) {
-          signal.removeEventListener('abort', handleAbortOnSignal);
-        }
-        const errObj = typeof error === 'string' ? new Error(error) : error;
-        reject(errObj);
-      }
       if (state.isResponseOnBodyAttachEvents) {
         state.isResponseOnBodyAttachEvents = false;
         onBody.off('drain', handleDrainOnBody);
@@ -96,6 +88,14 @@ export default (
         if (!onBody.destroyed) {
           onBody.destroy();
         }
+      }
+      if (state.isActive) {
+        state.isActive = false;
+        if (state.connector && signal && !signal.aborted) {
+          signal.removeEventListener('abort', handleAbortOnSignal);
+        }
+        const errObj = typeof error === 'string' ? new Error(error) : error;
+        reject(errObj);
       }
     }
 
