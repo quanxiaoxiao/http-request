@@ -50,7 +50,6 @@ export default (
       connector: null,
       bytesIncoming: 0,
       bytesOutgoing: 0,
-      bytesBody: 0,
       body: Buffer.from([]),
       decode: null,
       statusCode: null,
@@ -218,7 +217,6 @@ export default (
           if (state.timeOnResponseBody == null) {
             state.timeOnResponseBody = calcTime();
           }
-          state.bytesBody += bodyChunk.length;
           if (onBody) {
             if (onBody.write) {
               assert(onBody.writable);
@@ -329,13 +327,13 @@ export default (
       return {
         bytesIncoming: state.bytesIncoming,
         bytesOutgoing: state.bytesOutgoing,
-        bytesBody: state.bytesBody,
         httpVersion: state.httpVersion,
         statusCode: state.statusCode,
         statusText: state.statusText,
         headersRaw: state.headersRaw,
         headers: state.headers,
         body: state.body,
+
         dateTime: state.dateTime,
         timeOnConnect: state.timeOnConnect,
         timeOnRequestSend: state.timeOnRequestSend,
