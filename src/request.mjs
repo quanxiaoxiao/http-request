@@ -68,13 +68,13 @@ export default (
       timeOnResponseHeader: null,
       timeOnResponseBody: null,
       timeOnResponseEnd: null,
-    };
 
-    const requestOptions = {
-      path,
-      method,
-      headers,
-      body,
+      request: {
+        path,
+        method,
+        headers,
+        body,
+      },
     };
 
     function calcTime() {
@@ -111,7 +111,7 @@ export default (
           }
           const ret = state.connector.write(chunk);
           if (!ret && state.isRequestBodyAttachEvents) {
-            requestOptions.body.pause();
+            state.request.body.pause();
           }
         } catch (error) {
           handleError(error);
@@ -123,15 +123,15 @@ export default (
     async function handleConnect() {
       if (onRequest) {
         try {
-          await onRequest(requestOptions);
+          await onRequest(state.request);
         } catch (error) {
           handleError(error);
           state.connector();
         }
       }
       if (state.isActive) {
-        if (requestOptions.body && requestOptions.body.pipe) {
-          if (!requestOptions.body.readable) {
+        if (state.request.body && state.request.body.pipe) {
+          if (!state.request.body.readable) {
             state.connector();
             emitError('request body stream unable read');
           } else {
@@ -140,7 +140,7 @@ export default (
         } else {
           try {
             state.timeOnRequestSend = calcTime();
-            outgoing(encodeHttp(requestOptions));
+            outgoing(encodeHttp(state.request));
           } catch (error) {
             state.connector();
             emitError(error);
@@ -154,15 +154,15 @@ export default (
       if (state.isActive) {
         outgoing(state.encodeRequest(chunk));
       } else {
-        requestOptions.body.off('data', handleDataOnRequestBody);
+        state.request.body.off('data', handleDataOnRequestBody);
       }
     }
 
     function handleEndOnRequestBody() {
       state.isRequestBodyAttachEvents = false;
-      requestOptions.body.off('close', handleCloseOnRequestBody);
-      requestOptions.body.off('data', handleDataOnRequestBody);
-      requestOptions.body.off('error', handleErrorOnRequestBody);
+      state.request.body.off('close', handleCloseOnRequestBody);
+      state.request.body.off('data', handleDataOnRequestBody);
+      state.request.body.off('error', handleErrorOnRequestBody);
       if (state.isActive) {
         outgoing(state.encodeRequest());
       }
@@ -170,9 +170,9 @@ export default (
 
     function handleCloseOnRequestBody() {
       state.isRequestBodyAttachEvents = false;
-      requestOptions.body.off('end', handleEndOnRequestBody);
-      requestOptions.body.off('data', handleDataOnRequestBody);
-      requestOptions.body.off('error', handleErrorOnRequestBody);
+      state.request.body.off('end', handleEndOnRequestBody);
+      state.request.body.off('data', handleDataOnRequestBody);
+      state.request.body.off('error', handleErrorOnRequestBody);
       emitError('request body stream close');
       state.connector();
     }
@@ -185,10 +185,10 @@ export default (
     function clearRequestBodyStreamEvents() {
       if (state.isRequestBodyAttachEvents) {
         state.isRequestBodyAttachEvents = false;
-        requestOptions.body.off('error', handleErrorOnRequestBody);
-        requestOptions.body.off('close', handleCloseOnRequestBody);
-        requestOptions.body.off('end', handleEndOnRequestBody);
-        requestOptions.body.off('data', handleDataOnRequestBody);
+        state.request.body.off('error', handleErrorOnRequestBody);
+        state.request.body.off('close', handleCloseOnRequestBody);
+        state.request.body.off('end', handleEndOnRequestBody);
+        state.request.body.off('data', handleDataOnRequestBody);
       }
     }
 
@@ -266,22 +266,22 @@ export default (
     function pipe() {
       try {
         state.encodeRequest = encodeHttp({
-          path: requestOptions.path,
-          method: requestOptions.method,
-          headers: requestOptions.headers,
-          body: requestOptions.body,
+          path: state.request.path,
+          method: state.request.method,
+          headers: state.request.headers,
+          body: state.request.body,
           onHeader: (chunkRequestHeaders) => {
             assert(!state.isRequestBodyAttachEvents);
             if (state.isActive) {
               state.timeOnRequestSend = calcTime();
               outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
               state.isRequestBodyAttachEvents = true;
-              requestOptions.body.once('error', handleErrorOnRequestBody);
-              requestOptions.body.once('close', handleCloseOnRequestBody);
-              requestOptions.body.once('end', handleEndOnRequestBody);
-              requestOptions.body.on('data', handleDataOnRequestBody);
-              if (requestOptions.body.isPaused()) {
-                requestOptions.body.resume();
+              state.request.body.once('error', handleErrorOnRequestBody);
+              state.request.body.once('close', handleCloseOnRequestBody);
+              state.request.body.once('end', handleEndOnRequestBody);
+              state.request.body.on('data', handleDataOnRequestBody);
+              if (state.request.body.isPaused()) {
+                state.request.body.resume();
               }
             }
           },
@@ -384,9 +384,9 @@ export default (
         onDrain: () => {
           if (state.isActive
             && state.isRequestBodyAttachEvents
-            && requestOptions.body.isPaused()
+            && state.request.body.isPaused()
           ) {
-            requestOptions.body.resume();
+            state.request.body.resume();
           }
         },
         onError: (error) => {
