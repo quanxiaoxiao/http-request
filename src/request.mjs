@@ -51,9 +51,6 @@ export default (
       bytesIncoming: 0,
       bytesOutgoing: 0,
       decode: null,
-      statusCode: null,
-      headers: {},
-      headersRaw: [],
       encodeRequest: null,
 
       dateTime: Date.now(),
@@ -212,8 +209,8 @@ export default (
         onHeader: async (ret) => {
           assert(state.isActive);
           state.timeOnResponseHeader = calcTime();
-          state.headers = ret.headers;
-          state.headersRaw = ret.headersRaw;
+          state.response.headers = ret.headers;
+          state.response.headersRaw = ret.headersRaw;
           if (onHeader) {
             await onHeader(getState());
           }
@@ -336,8 +333,8 @@ export default (
         httpVersion: state.response.httpVersion,
         statusCode: state.response.statusCode,
         statusText: state.response.statusText,
-        headersRaw: state.headersRaw,
-        headers: state.headers,
+        headersRaw: state.response.headersRaw,
+        headers: state.response.headers,
         body: state.response.body,
 
         dateTime: state.dateTime,
