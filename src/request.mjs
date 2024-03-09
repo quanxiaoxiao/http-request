@@ -50,7 +50,6 @@ export default (
       connector: null,
       bytesIncoming: 0,
       bytesOutgoing: 0,
-      responseBody: Buffer.from([]),
       decode: null,
       statusCode: null,
       httpVersion: null,
@@ -74,6 +73,15 @@ export default (
         method,
         headers,
         body,
+      },
+
+      response: {
+        body: Buffer.from([]),
+        statusCode: null,
+        httpVersion: null,
+        statusText: null,
+        headers: {},
+        headersRaw: [],
       },
     };
 
@@ -227,8 +235,8 @@ export default (
               onBody(bodyChunk);
             }
           } else {
-            state.responseBody = Buffer.concat([
-              state.responseBody,
+            state.response.body = Buffer.concat([
+              state.response.body,
               bodyChunk,
             ]);
           }
@@ -332,7 +340,7 @@ export default (
         statusText: state.statusText,
         headersRaw: state.headersRaw,
         headers: state.headers,
-        body: state.responseBody,
+        body: state.response.body,
 
         dateTime: state.dateTime,
         timeOnConnect: state.timeOnConnect,
