@@ -80,6 +80,16 @@ export default (
       return performance.now() - state.timeOnStart;
     }
 
+    function clearRequestBodyStreamEvents() {
+      if (state.isRequestBodyAttachEvents) {
+        state.isRequestBodyAttachEvents = false;
+        state.request.body.off('error', handleErrorOnRequestBody);
+        state.request.body.off('close', handleCloseOnRequestBody);
+        state.request.body.off('end', handleEndOnRequestBody);
+        state.request.body.off('data', handleDataOnRequestBody);
+      }
+    }
+
     function emitError(error) {
       if (state.isResponseOnBodyAttachEvents) {
         state.isResponseOnBodyAttachEvents = false;
@@ -89,6 +99,7 @@ export default (
           onBody.destroy();
         }
       }
+      clearRequestBodyStreamEvents();
       if (state.isActive) {
         state.isActive = false;
         if (state.connector && signal && !signal.aborted) {
@@ -181,16 +192,6 @@ export default (
       state.connector();
     }
 
-    function clearRequestBodyStreamEvents() {
-      if (state.isRequestBodyAttachEvents) {
-        state.isRequestBodyAttachEvents = false;
-        state.request.body.off('error', handleErrorOnRequestBody);
-        state.request.body.off('close', handleCloseOnRequestBody);
-        state.request.body.off('end', handleEndOnRequestBody);
-        state.request.body.off('data', handleDataOnRequestBody);
-      }
-    }
-
     function bindResponseDecode() {
       state.decode = decodeHttpResponse({
         onStartLine: async (ret) => {
@@ -255,7 +256,6 @@ export default (
 
     function handleError(error) {
       emitError(error);
-      clearRequestBodyStreamEvents();
       if (state.tick != null) {
         clearTimeout(state.tick);
         state.tick = null;
@@ -409,7 +409,6 @@ export default (
         state.tick = null;
         if (state.isActive) {
           state.connector();
-          clearRequestBodyStreamEvents();
           emitError(new SocketConnectTimeoutError());
         }
       }, 1000 * 50);
