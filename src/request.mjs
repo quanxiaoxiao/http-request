@@ -124,7 +124,7 @@ export default (
             state.request.body.pause();
           }
         } catch (error) {
-          handleError(error);
+          emitError(error);
           state.connector();
         }
       }
@@ -135,7 +135,7 @@ export default (
         try {
           await onRequest(state.request);
         } catch (error) {
-          handleError(error);
+          emitError(error);
           state.connector();
         }
       }
@@ -254,14 +254,6 @@ export default (
       });
     }
 
-    function handleError(error) {
-      emitError(error);
-      if (state.tick != null) {
-        clearTimeout(state.tick);
-        state.tick = null;
-      }
-    }
-
     function pipe() {
       try {
         state.encodeRequest = encodeHttp({
@@ -287,7 +279,7 @@ export default (
         });
       } catch (error) {
         state.connector();
-        handleError(error);
+        emitError(error);
       }
     }
 
@@ -318,7 +310,11 @@ export default (
         state.isResponseOnBodyAttachEvents = false;
         onBody.off('drain', handleDrainOnBody);
       }
-      handleError(new Error('onBody stream close error'));
+      if (state.tick) {
+        clearTimeout(state.tick);
+        state.tick = null;
+      }
+      emitError('onBody stream close error');
       state.connector();
     }
 
@@ -349,17 +345,17 @@ export default (
         onConnect: () => {
           assert(state.isActive);
           assert(!state.isConnect);
-          state.isConnect = true;
-          state.timeOnConnect = calcTime();
           clearTimeout(state.tick);
           state.tick = null;
+          state.isConnect = true;
+          state.timeOnConnect = calcTime();
           handleConnect();
         },
         onData: async (chunk) => {
           assert(state.isActive);
           if (state.timeOnRequestSend == null) {
             state.connector();
-            handleError(new Error('request is not send, but received chunk'));
+            emitError('request is not send, but received chunk');
           } else {
             const size = chunk.length;
             state.bytesIncoming += size;
@@ -375,7 +371,7 @@ export default (
                 await state.decode(chunk);
               } catch (error) {
                 state.connector();
-                handleError(error);
+                emitError(error);
               }
             }
           }
@@ -390,20 +386,28 @@ export default (
         },
         onError: (error) => {
           if (state.isConnect) {
-            handleError(error);
+            emitError(error);
           } else {
-            handleError(new SocketConnectError());
+            if (state.tick != null) {
+              clearTimeout(state.tick);
+              state.tick = null;
+            }
+            emitError(new SocketConnectError());
           }
         },
         onClose: () => {
-          handleError(new SocketCloseError());
+          if (state.tick != null) {
+            clearTimeout(state.tick);
+            state.tick = null;
+          }
+          emitError(new SocketCloseError());
         },
       },
       () => socket,
     );
 
     if (!state.connector) {
-      handleError(new ConnectorCreateError());
+      emitError(new ConnectorCreateError());
     } else if (state.isActive) {
       state.tick = setTimeout(() => {
         state.tick = null;
