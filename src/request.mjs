@@ -289,10 +289,7 @@ export default (
 
     function handleAbortOnSignal() {
       clearRequestBodyStreamEvents();
-      if (state.tick) {
-        clearTimeout(state.tick);
-        state.tick = null;
-      }
+      clearTick();
       if (state.isResponseOnBodyAttachEvents) {
         state.isResponseOnBodyAttachEvents = false;
         onBody.off('drain', handleDrainOnBody);
@@ -309,15 +306,19 @@ export default (
       state.connector.resume();
     }
 
+    function clearTick() {
+      if (state.tick) {
+        clearTimeout(state.tick);
+        state.tick = null;
+      }
+    }
+
     function handleCloseOnBody() {
       if (state.isResponseOnBodyAttachEvents) {
         state.isResponseOnBodyAttachEvents = false;
         onBody.off('drain', handleDrainOnBody);
       }
-      if (state.tick) {
-        clearTimeout(state.tick);
-        state.tick = null;
-      }
+      clearTick();
       emitError('onBody stream close error');
       state.connector();
     }
@@ -349,8 +350,7 @@ export default (
         onConnect: () => {
           assert(state.isActive);
           assert(!state.isConnect);
-          clearTimeout(state.tick);
-          state.tick = null;
+          clearTick();
           state.isConnect = true;
           state.timeOnConnect = calcTime();
           handleConnect();
@@ -392,18 +392,12 @@ export default (
           if (state.isConnect) {
             emitError(error);
           } else {
-            if (state.tick != null) {
-              clearTimeout(state.tick);
-              state.tick = null;
-            }
+            clearTick();
             emitError(new SocketConnectError());
           }
         },
         onClose: () => {
-          if (state.tick != null) {
-            clearTimeout(state.tick);
-            state.tick = null;
-          }
+          clearTick();
           emitError(new SocketCloseError());
         },
       },

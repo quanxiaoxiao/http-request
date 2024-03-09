@@ -1,9 +1,18 @@
 {
   "name": "@quanxiaoxiao/http-request",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
+  "main": "./src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "test:coverage": "node --test --experimental-test-coverage"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.23.10",
