@@ -11,7 +11,7 @@ export default ({
   path,
   method,
   headers,
-  body,
+  body = null,
 }) => {
   assert(!!hostname);
   const result = {
@@ -20,6 +20,12 @@ export default ({
     headers,
     body,
   };
+  if (!result.method) {
+    result.method = 'GET';
+  }
+  if (!result.path) {
+    result.path = '/';
+  }
   if (result.headers) {
     if (!Array.isArray(result.headers)) {
       assert(_.isPlainObject(result.headers));

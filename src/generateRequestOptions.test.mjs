@@ -89,4 +89,34 @@ test('generateRequestOptions', () => {
     method: 'GET',
     body: null,
   });
+  ret = generateRequestOptions({
+    hostname: 'www.test.com',
+    path: '/aaa?name=ccc',
+    body: null,
+  });
+  assert.deepEqual(ret, {
+    path: '/aaa?name=ccc',
+    headers: ['Host', 'www.test.com'],
+    method: 'GET',
+    body: null,
+  });
+  ret = generateRequestOptions({
+    hostname: 'www.test.com',
+    body: null,
+  });
+  assert.deepEqual(ret, {
+    path: '/',
+    headers: ['Host', 'www.test.com'],
+    method: 'GET',
+    body: null,
+  });
+  ret = generateRequestOptions({
+    hostname: 'www.test.com',
+  });
+  assert.deepEqual(ret, {
+    path: '/',
+    headers: ['Host', 'www.test.com'],
+    method: 'GET',
+    body: null,
+  });
 });
