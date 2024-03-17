@@ -1,6 +1,6 @@
 {
   "name": "@quanxiaoxiao/http-request",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "./src/index.mjs",
   "exports": {
@@ -30,8 +30,8 @@
     "node": ">= 20.0.0"
   },
   "dependencies": {
-    "@quanxiaoxiao/about-net": "^0.8.3",
     "@quanxiaoxiao/http-utils": "^0.3.4",
+    "@quanxiaoxiao/socket": "^0.1.0",
     "lodash": "^4.17.21"
   }
 }

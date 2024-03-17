@@ -6,8 +6,11 @@ import fs from 'node:fs';
 import { test, mock } from 'node:test';
 import _ from 'lodash';
 import { encodeHttp, decodeHttpRequest } from '@quanxiaoxiao/http-utils';
-import { errors } from '@quanxiaoxiao/about-net';
 import request from './request.mjs';
+import {
+  SocketConnectError,
+  SocketCloseError,
+} from './errors.mjs';
 
 const _getPort = () => {
   let _port = 5350;
@@ -58,6 +61,7 @@ test('request signal aborted', () => {
 });
 
 test('request socket unable connect 1', async () => {
+  const port = getPort();
   try {
     await request(
       {
@@ -65,12 +69,16 @@ test('request socket unable connect 1', async () => {
       },
       () => {
         const socket = net.Socket();
+        socket.connect({
+          host: '127.0.0.1',
+          port,
+        });
         return socket;
       },
     );
     throw new Error('xxx');
   } catch (error) {
-    assert(error instanceof errors.SocketConnectError);
+    assert(error instanceof SocketConnectError);
   }
 });
 
@@ -84,7 +92,7 @@ test('request socket unable connect 2', async () => {
     );
     throw new Error('xxx');
   } catch (error) {
-    assert(error instanceof errors.SocketConnectError);
+    assert(error instanceof SocketConnectError);
   }
   await waitFor();
 });
@@ -146,7 +154,7 @@ test('server close socket with no response', async () => {
     await request({}, connect(port));
     throw new Error('xxx');
   } catch (error) {
-    assert(error instanceof errors.SocketCloseError);
+    assert(error instanceof SocketCloseError);
   }
   await waitFor();
   server.close();
@@ -170,7 +178,7 @@ test('server response with not full chunk', async () => {
     await request({}, connect(port));
     throw new Error('xxx');
   } catch (error) {
-    assert(error instanceof errors.SocketCloseError);
+    assert(error instanceof SocketCloseError);
   }
   await waitFor(500);
   server.close();
@@ -1048,7 +1056,7 @@ test('request remote socket close, stream body unbind events', async () => {
     );
     throw new Error('xxxx');
   } catch (error) {
-    assert(error instanceof errors.SocketCloseError);
+    assert(error instanceof SocketCloseError);
   }
   assert(!body.eventNames().includes('end'));
   assert(!body.eventNames().includes('data'));
@@ -1222,7 +1230,7 @@ test('request onBody with stream close', async () => {
     throw new Error('xxx');
   } catch (error) {
     assert(isClose);
-    assert(error instanceof errors.SocketCloseError);
+    assert(error instanceof SocketCloseError);
   }
 
   server.close();

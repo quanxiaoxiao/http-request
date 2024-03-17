@@ -3,14 +3,12 @@ import assert from 'node:assert';
 import net from 'node:net';
 import { Buffer } from 'node:buffer';
 import { encodeHttp, decodeHttpResponse } from '@quanxiaoxiao/http-utils';
-import { createConnector, errors } from '@quanxiaoxiao/about-net';
-
-const {
+import { createConnector } from '@quanxiaoxiao/socket';
+import {
   SocketConnectError,
   SocketCloseError,
   SocketConnectTimeoutError,
-  ConnectorCreateError,
-} = errors;
+} from './errors.mjs';
 
 export default (
   options,
@@ -404,26 +402,22 @@ export default (
       () => socket,
     );
 
-    if (!state.connector) {
-      emitError(new ConnectorCreateError());
-    } else if (state.isActive) {
-      state.tick = setTimeout(() => {
-        state.tick = null;
-        if (state.isActive) {
-          state.connector();
-          emitError(new SocketConnectTimeoutError());
-        }
-      }, 1000 * 50);
+    state.tick = setTimeout(() => {
+      state.tick = null;
+      if (state.isActive) {
+        state.connector();
+        emitError(new SocketConnectTimeoutError());
+      }
+    }, 1000 * 15);
 
-      if (signal) {
-        signal.addEventListener('abort', handleAbortOnSignal, { once: true });
-      }
-      if (onBody && onBody.write) {
-        assert(onBody.writable);
-        state.isResponseOnBodyAttachEvents = true;
-        onBody.on('drain', handleDrainOnBody);
-        onBody.once('close', handleCloseOnBody);
-      }
+    if (signal) {
+      signal.addEventListener('abort', handleAbortOnSignal, { once: true });
+    }
+    if (onBody && onBody.write) {
+      assert(onBody.writable);
+      state.isResponseOnBodyAttachEvents = true;
+      onBody.on('drain', handleDrainOnBody);
+      onBody.once('close', handleCloseOnBody);
     }
   });
 };
