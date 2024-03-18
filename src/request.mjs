@@ -74,6 +74,10 @@ export default (
       },
     };
 
+    if (onBody && onBody.write) {
+      assert(onBody.writable);
+    }
+
     function calcTime() {
       return performance.now() - state.timeOnStart;
     }
@@ -414,7 +418,6 @@ export default (
       signal.addEventListener('abort', handleAbortOnSignal, { once: true });
     }
     if (onBody && onBody.write) {
-      assert(onBody.writable);
       state.isResponseOnBodyAttachEvents = true;
       onBody.on('drain', handleDrainOnBody);
       onBody.once('close', handleCloseOnBody);
