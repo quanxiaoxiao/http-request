@@ -51,6 +51,7 @@ export default (
       timeOnStart: performance.now(),
       timeOnConnect: null,
       timeOnRequestSend: null,
+      timeOnRequestEnd: null,
       timeOnResponse: null,
       timeOnResponseStartLine: null,
       timeOnResponseHeader: null,
@@ -62,6 +63,7 @@ export default (
         method: options.method || 'GET',
         headers: options.headers || {},
         body: options.body || null,
+        bytesBody: 0,
       },
 
       response: {
@@ -69,6 +71,7 @@ export default (
         statusCode: null,
         httpVersion: null,
         statusText: null,
+        bytesBody: 0,
         headers: {},
         headersRaw: [],
       },
@@ -153,7 +156,11 @@ export default (
         } else {
           state.timeOnRequestSend = calcTime();
           try {
+            if (state.request.body) {
+              state.request.bytesBody = Buffer.byteLength(state.request.body);
+            }
             outgoing(encodeHttp(state.request));
+            state.timeOnRequestEnd = calcTime();
           } catch (error) {
             state.connector();
             emitError(error);
@@ -164,6 +171,7 @@ export default (
 
     function handleDataOnRequestBody(chunk) {
       assert(state.encodeRequest);
+      state.request.bytesBody += chunk.length;
       if (state.isActive) {
         outgoing(state.encodeRequest(chunk));
       } else {
@@ -179,6 +187,7 @@ export default (
       if (state.isActive) {
         outgoing(state.encodeRequest());
       }
+      state.timeOnRequestEnd = calcTime();
     }
 
     function handleCloseOnRequestBody() {
@@ -224,6 +233,7 @@ export default (
           if (state.timeOnResponseBody == null) {
             state.timeOnResponseBody = calcTime();
           }
+          state.response.bytesBody += bodyChunk.length;
           if (onBody) {
             if (onBody.write) {
               assert(onBody.writable);
@@ -336,10 +346,13 @@ export default (
         headersRaw: state.response.headersRaw,
         headers: state.response.headers,
         body: state.response.body,
+        bytesRequestBody: state.request.bytesBody,
+        bytesResponseBody: state.response.bytesBody,
 
         dateTime: state.dateTime,
         timeOnConnect: state.timeOnConnect,
         timeOnRequestSend: state.timeOnRequestSend,
+        timeOnRequestEnd: state.timeOnRequestEnd,
         timeOnResponse: state.timeOnResponse,
         timeOnResponseStartLine: state.timeOnResponseStartLine,
         timeOnResponseHeader: state.timeOnResponseHeader,
@@ -352,7 +365,6 @@ export default (
       {
         onConnect: () => {
           assert(state.isActive);
-          assert(!state.isConnect);
           clearTick();
           state.isConnect = true;
           state.timeOnConnect = calcTime();

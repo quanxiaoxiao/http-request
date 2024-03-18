@@ -276,6 +276,8 @@ test('request', async () => {
   assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 2 });
   assert.deepEqual(ret.headersRaw, ['server', 'quan', 'Content-Length', '2']);
   assert.equal(ret.statusCode, 200);
+  assert.equal(ret.bytesResponseBody, 2);
+  assert.equal(ret.bytesRequestBody, 5);
   await waitFor(100);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   assert.equal(handleDataOnSocket.mock.calls.length, 1);
@@ -1258,6 +1260,7 @@ test('request onBody with stream close 2', async () => {
       },
     });
     socket.on('data', () => {});
+    socket.on('error', () => {});
     setTimeout(() => {
       let i = 0;
       const tick = setInterval(() => {
@@ -1285,7 +1288,7 @@ test('request onBody with stream close 2', async () => {
     }
   };
 
-  onBody.on('error', () => {});
+  // onBody.on('error', () => {});
 
   onBody.on('drain', handleDrain);
 
