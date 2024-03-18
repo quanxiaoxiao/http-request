@@ -1331,6 +1331,7 @@ test('request onBody with stream by signal', async () => {
         name: 'quan',
       },
     });
+    socket.on('error', () => {});
     socket.on('data', () => {});
     setTimeout(() => {
       let i = 0;
@@ -1358,7 +1359,7 @@ test('request onBody with stream by signal', async () => {
     }
   };
 
-  onBody.on('error', () => {});
+  // onBody.on('error', () => {});
 
   onBody.on('drain', handleDrain);
 

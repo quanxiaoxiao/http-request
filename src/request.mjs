@@ -85,10 +85,10 @@ export default (
     function clearRequestBodyStreamEvents() {
       if (state.isRequestBodyAttachEvents) {
         state.isRequestBodyAttachEvents = false;
-        state.request.body.off('error', handleErrorOnRequestBody);
         state.request.body.off('close', handleCloseOnRequestBody);
         state.request.body.off('end', handleEndOnRequestBody);
         state.request.body.off('data', handleDataOnRequestBody);
+        state.request.body.off('error', handleErrorOnRequestBody);
       }
     }
 
@@ -108,6 +108,7 @@ export default (
           signal.removeEventListener('abort', handleAbortOnSignal);
         }
         const errObj = typeof error === 'string' ? new Error(error) : error;
+        errObj.isConnect = state.isConnect;
         reject(errObj);
       }
     }
@@ -417,6 +418,7 @@ export default (
     if (signal) {
       signal.addEventListener('abort', handleAbortOnSignal, { once: true });
     }
+
     if (onBody && onBody.write) {
       state.isResponseOnBodyAttachEvents = true;
       onBody.on('drain', handleDrainOnBody);
