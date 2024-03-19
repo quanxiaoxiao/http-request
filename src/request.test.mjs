@@ -309,32 +309,29 @@ test('request by response too early', async () => {
 
   server.listen(port);
 
-  try {
-    await request(
-      {
-        body: 'quan1',
-        headers: { name: 'aaa' },
-        onRequest: async () => {
-          await waitFor(300);
-          assert.equal(handleCloseOnSocket.mock.calls.length, 0);
-        },
-        onStartLine,
-        onIncoming,
-        onOutgoing,
+  const ret = await request(
+    {
+      body: 'quan1',
+      headers: { name: 'aaa' },
+      onRequest: async () => {
+        await waitFor(300);
+        assert.equal(handleCloseOnSocket.mock.calls.length, 0);
       },
-      connect(port),
-    );
-    throw new Error('xxx');
-  } catch (error) {
-    assert.equal(error.message, 'request is not send, but received chunk');
-  }
+      onStartLine,
+      onIncoming,
+      onOutgoing,
+    },
+    connect(port),
+  );
+  assert.equal(ret.statusCode, 200);
+  assert.equal(ret.body.toString(), 'ok');
   await waitFor(500);
   server.close();
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
-  assert.equal(handleDataOnSocket.mock.calls.length, 0);
-  assert.equal(onStartLine.mock.calls.length, 0);
-  assert.equal(onIncoming.mock.calls.length, 0);
-  assert.equal(onOutgoing.mock.calls.length, 0);
+  assert.equal(handleDataOnSocket.mock.calls.length, 1);
+  assert.equal(onStartLine.mock.calls.length, 1);
+  assert.equal(onIncoming.mock.calls.length, 1);
+  assert.equal(onOutgoing.mock.calls.length, 1);
 });
 
 test('request onBody', async () => {

@@ -105,11 +105,11 @@ export default (
           onBody.destroy();
         }
       }
+      if (state.connector && signal && !signal.aborted) {
+        signal.removeEventListener('abort', handleAbortOnSignal);
+      }
       if (state.isActive) {
         state.isActive = false;
-        if (state.connector && signal && !signal.aborted) {
-          signal.removeEventListener('abort', handleAbortOnSignal);
-        }
         const errObj = typeof error === 'string' ? new Error(error) : error;
         errObj.isConnect = state.isConnect;
         reject(errObj);
@@ -130,41 +130,8 @@ export default (
             state.request.body.pause();
           }
         } catch (error) {
-          emitError(error);
           state.connector();
-        }
-      }
-    }
-
-    async function handleConnect() {
-      if (onRequest) {
-        try {
-          await onRequest(state.request);
-        } catch (error) {
           emitError(error);
-          state.connector();
-        }
-      }
-      if (state.isActive) {
-        if (state.request.body && state.request.body.pipe) {
-          if (!state.request.body.readable) {
-            state.connector();
-            emitError('request body stream unable read');
-          } else {
-            pipe();
-          }
-        } else {
-          state.timeOnRequestSend = calcTime();
-          try {
-            if (state.request.body) {
-              state.request.bytesBody = Buffer.byteLength(state.request.body);
-            }
-            outgoing(encodeHttp(state.request));
-            state.timeOnRequestEnd = calcTime();
-          } catch (error) {
-            state.connector();
-            emitError(error);
-          }
         }
       }
     }
@@ -195,8 +162,8 @@ export default (
       state.request.body.off('end', handleEndOnRequestBody);
       state.request.body.off('data', handleDataOnRequestBody);
       state.request.body.off('error', handleErrorOnRequestBody);
-      emitError('request body stream close');
       state.connector();
+      emitError('request body stream close');
     }
 
     function handleErrorOnRequestBody(error) {
@@ -204,8 +171,8 @@ export default (
       state.request.body.off('end', handleEndOnRequestBody);
       state.request.body.off('data', handleDataOnRequestBody);
       state.request.body.off('close', handleCloseOnRequestBody);
-      emitError(error);
       state.connector();
+      emitError(error);
     }
 
     function bindResponseDecode() {
@@ -217,6 +184,7 @@ export default (
           state.timeOnResponseStartLine = calcTime();
           if (onStartLine) {
             await onStartLine(getState());
+            assert(state.isActive);
           }
         },
         onHeader: async (ret) => {
@@ -226,6 +194,7 @@ export default (
           state.response.headersRaw = ret.headersRaw;
           if (onHeader) {
             await onHeader(getState());
+            assert(state.isActive);
           }
         },
         onBody: (bodyChunk) => {
@@ -272,32 +241,27 @@ export default (
     }
 
     function pipe() {
-      try {
-        state.encodeRequest = encodeHttp({
-          path: state.request.path,
-          method: state.request.method,
-          headers: state.request.headers,
-          body: state.request.body,
-          onHeader: (chunkRequestHeaders) => {
-            assert(!state.isRequestBodyAttachEvents);
-            if (state.isActive) {
-              state.timeOnRequestSend = calcTime();
-              outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
-              state.isRequestBodyAttachEvents = true;
-              state.request.body.once('error', handleErrorOnRequestBody);
-              state.request.body.once('close', handleCloseOnRequestBody);
-              state.request.body.once('end', handleEndOnRequestBody);
-              state.request.body.on('data', handleDataOnRequestBody);
-              if (state.request.body.isPaused()) {
-                state.request.body.resume();
-              }
+      state.encodeRequest = encodeHttp({
+        path: state.request.path,
+        method: state.request.method,
+        headers: state.request.headers,
+        body: state.request.body,
+        onHeader: (chunkRequestHeaders) => {
+          assert(!state.isRequestBodyAttachEvents);
+          if (state.isActive) {
+            state.timeOnRequestSend = calcTime();
+            outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
+            state.isRequestBodyAttachEvents = true;
+            state.request.body.once('error', handleErrorOnRequestBody);
+            state.request.body.once('close', handleCloseOnRequestBody);
+            state.request.body.once('end', handleEndOnRequestBody);
+            state.request.body.on('data', handleDataOnRequestBody);
+            if (state.request.body.isPaused()) {
+              state.request.body.resume();
             }
-          },
-        });
-      } catch (error) {
-        state.connector();
-        emitError(error);
-      }
+          }
+        },
+      });
     }
 
     function handleAbortOnSignal() {
@@ -332,8 +296,8 @@ export default (
         onBody.off('drain', handleDrainOnBody);
       }
       clearTick();
-      emitError('onBody stream close error');
       state.connector();
+      emitError('onBody stream close error');
     }
 
     function getState() {
@@ -363,36 +327,50 @@ export default (
 
     state.connector = createConnector(
       {
-        onConnect: () => {
+        onConnect: async () => {
           assert(state.isActive);
           clearTick();
           state.isConnect = true;
           state.timeOnConnect = calcTime();
-          handleConnect();
-        },
-        onData: async (chunk) => {
-          assert(state.isActive);
-          if (state.timeOnRequestSend == null) {
-            state.connector();
-            emitError('request is not send, but received chunk');
+          if (onRequest) {
+            await onRequest(state.request);
+            assert(state.isActive);
+          }
+          if (state.request.body && state.request.body.pipe) {
+            if (!state.request.body.readable) {
+              throw new Error('request body stream unable read');
+            }
+            pipe();
           } else {
-            const size = chunk.length;
-            state.bytesIncoming += size;
-            if (!state.decode) {
-              state.timeOnResponse = calcTime();
-              bindResponseDecode();
+            state.timeOnRequestSend = calcTime();
+            if (state.request.body) {
+              state.request.bytesBody = Buffer.byteLength(state.request.body);
             }
-            if (size > 0) {
-              try {
-                if (onIncoming) {
-                  onIncoming(chunk);
-                }
-                await state.decode(chunk);
-              } catch (error) {
-                state.connector();
-                emitError(error);
-              }
+            outgoing(encodeHttp(state.request));
+            state.timeOnRequestEnd = calcTime();
+          }
+        },
+        onData: (chunk) => {
+          assert(state.isActive);
+          assert(state.timeOnRequestSend != null);
+          const size = chunk.length;
+          state.bytesIncoming += size;
+          if (!state.decode) {
+            state.timeOnResponse = calcTime();
+            bindResponseDecode();
+          }
+          if (size > 0) {
+            if (onIncoming) {
+              onIncoming(chunk);
             }
+            state.decode(chunk)
+              .then(
+                () => {},
+                (error) => {
+                  state.connector();
+                  emitError(error);
+                },
+              );
           }
         },
         onDrain: () => {
