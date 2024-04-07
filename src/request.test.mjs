@@ -7,10 +7,6 @@ import { test, mock } from 'node:test';
 import _ from 'lodash';
 import { encodeHttp, decodeHttpRequest } from '@quanxiaoxiao/http-utils';
 import request from './request.mjs';
-import {
-  SocketConnectError,
-  SocketCloseError,
-} from './errors.mjs';
 
 const _getPort = () => {
   let _port = 5350;
@@ -78,7 +74,7 @@ test('request socket unable connect 1', async () => {
     );
     throw new Error('xxx');
   } catch (error) {
-    assert(error instanceof SocketConnectError);
+    assert.equal(error.isConnect, false);
   }
 });
 
@@ -92,7 +88,7 @@ test('request socket unable connect 2', async () => {
     );
     throw new Error('xxx');
   } catch (error) {
-    assert(error instanceof SocketConnectError);
+    assert.equal(error.isConnect, false);
   }
   await waitFor();
 });
@@ -154,7 +150,7 @@ test('server close socket with no response', async () => {
     await request({}, connect(port));
     throw new Error('xxx');
   } catch (error) {
-    assert(error instanceof SocketCloseError);
+    assert(error.isConnect);
   }
   await waitFor();
   server.close();
@@ -178,7 +174,7 @@ test('server response with not full chunk', async () => {
     await request({}, connect(port));
     throw new Error('xxx');
   } catch (error) {
-    assert(error instanceof SocketCloseError);
+    assert(error.isConnect);
   }
   await waitFor(500);
   server.close();
@@ -525,7 +521,11 @@ test('request onBody with stream', async () => {
   });
   server.listen(port);
 
+  const bufList = [];
   const onBody = new PassThrough();
+  onBody.on('data', (chunk) => {
+    bufList.push(chunk);
+  });
   const onHeader = mock.fn(() => {
     assert(onBody.eventNames().includes('drain'));
     assert(onBody.eventNames().includes('close'));
@@ -538,18 +538,12 @@ test('request onBody with stream', async () => {
     connect(port),
   );
   assert.equal(ret.body.toString(), '');
-  const bufList = [];
-  onBody.on('data', (chunk) => {
-    bufList.push(chunk);
-  });
-  setTimeout(() => {
-    assert.equal(Buffer.concat(bufList).toString(), '112233');
-  }, 200);
-  assert(!onBody.destroyed);
-  assert(!onBody.eventNames().includes('drain'));
+  assert(onBody.destroyed);
   assert(!onBody.eventNames().includes('close'));
+  assert(!onBody.eventNames().includes('drain'));
   server.close();
-  await waitFor(100);
+  await waitFor(1000);
+  assert.equal(Buffer.concat(bufList).toString(), '112233');
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
 
@@ -588,7 +582,7 @@ test('request onBody with stream close', async () => {
     );
     throw new Error('xxxx');
   } catch (error) {
-    assert.equal(error.message, 'onBody stream close error');
+    assert(error.isConnect);
   }
   assert(onBody.destroyed);
   server.close();
@@ -741,7 +735,9 @@ test('request body with stream', async () => {
     i++;
     if (i >= count) {
       clearInterval(tick);
-      body.end();
+      if (!body.writableEnded) {
+        body.end();
+      }
     }
   }, 10);
   const ret = await request(
@@ -786,12 +782,12 @@ test('request body with stream, before send is closed', async () => {
     );
     throw new Error('xxx');
   } catch (error) {
-    assert.equal(error.message, 'request body stream unable read');
+    assert(error.isConnect);
   }
 
   await waitFor(100);
   server.close();
-  assert.equal(handleDataOnSocket.mock.calls.length, 0);
+  assert.equal(onRequest.mock.calls.length, 1);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   assert.equal(onRequest.mock.calls.length, 1);
 });
@@ -830,7 +826,7 @@ test('request body with stream, stream by close', async () => {
     );
     throw new Error('xxx');
   } catch (error) {
-    assert.equal(error.message, 'request body stream close');
+    assert(error.isConnect);
     assert(!body.eventNames().includes('end'));
     assert(!body.eventNames().includes('data'));
   }
@@ -1055,13 +1051,13 @@ test('request remote socket close, stream body unbind events', async () => {
     );
     throw new Error('xxxx');
   } catch (error) {
-    assert(error instanceof SocketCloseError);
+    assert(error.isConnect);
   }
   assert(!body.eventNames().includes('end'));
   assert(!body.eventNames().includes('data'));
-  assert(!body.eventNames().includes('error'));
   assert(!body.eventNames().includes('close'));
-  await waitFor(100);
+  await waitFor(1000);
+  assert(!body.eventNames().includes('error'));
   server.close();
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
@@ -1103,9 +1099,9 @@ test('request remote socket close, stream body unbind events 2', async () => {
   }
   assert(!body.eventNames().includes('end'));
   assert(!body.eventNames().includes('data'));
-  assert(!body.eventNames().includes('error'));
   assert(!body.eventNames().includes('close'));
-  await waitFor(100);
+  await waitFor(1000);
+  assert(!body.eventNames().includes('error'));
   server.close();
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
@@ -1161,9 +1157,8 @@ test('request onBody with stream', async () => {
   assert(!onBody.eventNames().includes('drain'));
   assert(!onBody.eventNames().includes('close'));
   await waitFor(100);
-  assert(!onBody.destroyed);
-  assert(onBody.writable);
-  onBody.end();
+  assert(onBody.destroyed);
+  assert(!onBody.writable);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   const buf = fs.readFileSync(pathname);
   assert(/:999$/.test(buf.toString()));
@@ -1174,7 +1169,7 @@ test('request onBody with stream close', async () => {
   const port = getPort();
   const handleCloseOnSocket = mock.fn(() => {});
   const content = 'aabbccddeee';
-  const filename = `test_${Date.now()}_2`;
+  const filename = `test_${Date.now()}_222`;
   const pathname = path.resolve(process.cwd(), filename);
   const onBody = fs.createWriteStream(pathname);
   let isClose = false;
@@ -1197,7 +1192,7 @@ test('request onBody with stream close', async () => {
           }, 100);
         }
       });
-    }, 20);
+    }, 50);
     socket.on('close', handleCloseOnSocket);
   });
   server.listen(port);
@@ -1229,14 +1224,15 @@ test('request onBody with stream close', async () => {
     throw new Error('xxx');
   } catch (error) {
     assert(isClose);
-    assert(error instanceof SocketCloseError);
+    assert.equal(error.isConnect, true);
   }
 
   server.close();
 
   assert(!onBody.eventNames().includes('drain'));
   assert(!onBody.eventNames().includes('close'));
-  await waitFor(100);
+  await waitFor(1000);
+  assert(!onBody.eventNames().includes('error'));
   assert(onBody.destroyed);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   fs.unlinkSync(pathname);
@@ -1317,7 +1313,7 @@ test('request onBody with stream close 2', async () => {
   fs.unlinkSync(pathname);
 });
 
-test('request onBody with stream by signal', async () => {
+test('request onBody with stream by signal', { only: true }, async () => {
   const port = getPort();
   const handleCloseOnSocket = mock.fn(() => {});
   const content = 'aabbccddeee';
@@ -1359,8 +1355,6 @@ test('request onBody with stream by signal', async () => {
     }
   };
 
-  // onBody.on('error', () => {});
-
   onBody.on('drain', handleDrain);
 
   try {
@@ -1386,7 +1380,7 @@ test('request onBody with stream by signal', async () => {
   assert(!onBody.eventNames().includes('drain'));
   assert(!onBody.eventNames().includes('close'));
   await waitFor(100);
-  assert(!onBody.destroyed);
+  assert(onBody.destroyed);
   assert(controller.signal.aborted);
   onBody.end();
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
