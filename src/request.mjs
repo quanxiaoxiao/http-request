@@ -172,9 +172,13 @@ export default (
             state.response._write();
           } else {
             unbindSignalEvent();
-            state.connector.end();
             if (!controller.signal.aborted) {
               resolve(getState());
+            }
+            try {
+              state.connector.end();
+            } catch (error) {
+              // ignore
             }
           }
         },
@@ -312,7 +316,9 @@ export default (
           emitError(error);
         },
         onClose: () => {
-          emitError(new Error('Socket Close Error'));
+          if (state.timeOnResponseEnd == null) {
+            emitError(new Error('Socket Close Error'));
+          }
         },
       },
       () => socket,
@@ -339,9 +345,13 @@ export default (
           },
           onEnd: () => {
             unbindSignalEvent();
-            state.connector.end();
             if (!controller.signal.aborted) {
               resolve(getState());
+            }
+            try {
+              state.connector.end();
+            } catch (error) {
+              // ignore
             }
           },
         });

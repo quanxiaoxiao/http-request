@@ -1446,3 +1446,37 @@ test('request onBody with stream by signal', async () => {
   await waitFor(10);
   fs.unlinkSync(pathname);
 });
+
+test('request onBody stream no resume, but socket is close', async () => {
+  const port = getPort();
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.end(encodeHttp({
+        headers: { server: 'quan' },
+        body: 'aaa',
+      }));
+    }, 80);
+  });
+
+  server.listen(port);
+  const onBody = new PassThrough();
+  const onEnd = mock.fn(() => {
+    onBody.on('data', () => {});
+  });
+  await request(
+    {
+      path: '/aaaaa',
+      headers: {
+        name: 'aa',
+      },
+      body: null,
+      onBody,
+      onEnd,
+    },
+    connect(port),
+  );
+  assert.equal(onEnd.mock.calls.length, 1);
+  await waitFor(200);
+  server.close();
+});
