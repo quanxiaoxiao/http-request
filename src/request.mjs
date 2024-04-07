@@ -22,6 +22,7 @@ export default (
     onRequest,
     onStartLine,
     onHeader,
+    onEnd,
     onBody,
     onOutgoing,
     onIncoming,
@@ -158,17 +159,23 @@ export default (
             ]);
           }
         },
-        onEnd: () => {
+        onEnd: async () => {
           state.timeOnResponseEnd = calcTime();
           if (state.timeOnResponseBody == null) {
             state.timeOnResponseBody = state.timeOnResponseEnd;
+          }
+          if (onEnd) {
+            await onEnd(getState());
+            assert(!controller.signal.aborted);
           }
           if (state.response._write) {
             state.response._write();
           } else {
             unbindSignalEvent();
             state.connector.end();
-            resolve(getState());
+            if (!controller.signal.aborted) {
+              resolve(getState());
+            }
           }
         },
       });
@@ -215,7 +222,6 @@ export default (
     state.connector = createConnector(
       {
         onConnect: async () => {
-          assert(!controller.signal.aborted);
           clearTick();
           state.isConnect = true;
           state.timeOnConnect = calcTime();
@@ -295,8 +301,8 @@ export default (
           }
         },
         onDrain: () => {
-          assert(!controller.signal.aborted);
-          if (state.request.body instanceof Readable
+          if (!controller.signal.aborted
+            && state.request.body instanceof Readable
             && state.request.body.isPaused()
           ) {
             state.request.body.resume();
@@ -319,21 +325,24 @@ export default (
           signal: controller.signal,
           stream: onBody,
           onPause: () => {
-            assert(!controller.signal.aborted);
-            state.connector.pause();
+            if (!controller.signal.aborted) {
+              state.connector.pause();
+            }
           },
           onDrain: () => {
-            assert(!controller.signal.aborted);
-            state.connector.resume();
+            if (!controller.signal.aborted) {
+              state.connector.resume();
+            }
           },
           onError: (error) => {
             emitError(error);
           },
           onEnd: () => {
-            assert(!controller.signal.aborted);
             unbindSignalEvent();
             state.connector.end();
-            resolve(getState());
+            if (!controller.signal.aborted) {
+              resolve(getState());
+            }
           },
         });
       } catch (error) {

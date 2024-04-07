@@ -1313,7 +1313,36 @@ test('request onBody with stream close 2', async () => {
   fs.unlinkSync(pathname);
 });
 
-test('request onBody with stream by signal', { only: true }, async () => {
+test('request onEnd', { only: true }, async () => {
+  const port = getPort();
+
+  const handleDataOnSocket = mock.fn(() => {});
+
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write(encodeHttp({
+        headers: { server: 'quan' },
+        body: 'aaa',
+      }));
+    }, 80);
+  });
+
+  server.listen(port);
+
+  const onEnd = mock.fn(() => {});
+
+  const ret = await request({
+    onEnd,
+  }, connect(port));
+  assert.equal(onEnd.mock.calls.length, 1);
+  assert.deepEqual(onEnd.mock.calls[0].arguments[0], ret);
+  await waitFor(100);
+  server.close();
+  assert.equal(handleDataOnSocket.mock.calls.length, 1);
+});
+
+test('request onBody with stream by signal', async () => {
   const port = getPort();
   const handleCloseOnSocket = mock.fn(() => {});
   const content = 'aabbccddeee';
