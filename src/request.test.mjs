@@ -123,6 +123,36 @@ test('request', async () => {
   assert.equal(handleDataOnSocket.mock.calls.length, 1);
 });
 
+test('request onBody with stream, response with empty', async () => {
+  const port = getPort();
+
+  const handleDataOnSocket = mock.fn(() => {});
+
+  const server = net.createServer((socket) => {
+    socket.on('data', handleDataOnSocket);
+    setTimeout(() => {
+      socket.write(encodeHttp({
+        statusCode: 204,
+        headers: { server: 'quan' },
+        body: null,
+      }));
+    }, 80);
+  });
+
+  server.listen(port);
+
+  const onBody = new PassThrough();
+
+  const ret = await request({
+    onBody,
+  }, connect(port));
+  assert.equal(ret.statusCode, 204);
+  await waitFor(100);
+  assert(onBody.destroyed);
+  server.close();
+  assert.equal(handleDataOnSocket.mock.calls.length, 1);
+});
+
 test('server close socket with no response', async () => {
   const port = getPort();
 
@@ -1313,7 +1343,7 @@ test('request onBody with stream close 2', async () => {
   fs.unlinkSync(pathname);
 });
 
-test('request onEnd', { only: true }, async () => {
+test('request onEnd', async () => {
   const port = getPort();
 
   const handleDataOnSocket = mock.fn(() => {});
