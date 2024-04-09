@@ -5,7 +5,11 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { test, mock } from 'node:test';
 import _ from 'lodash';
-import { encodeHttp, decodeHttpRequest } from '@quanxiaoxiao/http-utils';
+import {
+  encodeHttp,
+  decodeHttpRequest,
+  HttpParserError,
+} from '@quanxiaoxiao/http-utils';
 import request from './request.mjs';
 
 const _getPort = () => {
@@ -1477,6 +1481,41 @@ test('request onBody stream no resume, but socket is close', async () => {
     connect(port),
   );
   assert.equal(onEnd.mock.calls.length, 1);
+  await waitFor(200);
+  server.close();
+});
+
+test('request response chunk invalid', { only: true }, async () => {
+  const port = getPort();
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.end(encodeHttp({
+        method: 'POST',
+        path: '/aaaa',
+        headers: { server: 'quan' },
+        body: 'aaa',
+      }));
+    }, 80);
+  });
+
+  server.listen(port);
+  await waitFor(100);
+  try {
+    await request(
+      {
+        path: '/aaaaa',
+        headers: {
+          name: 'aa',
+        },
+        body: null,
+      },
+      connect(port),
+    );
+    throw new Error('xxxxx');
+  } catch (error) {
+    assert(error instanceof HttpParserError);
+  }
   await waitFor(200);
   server.close();
 });

@@ -10,6 +10,11 @@ import {
   wrapStreamRead,
 } from '@quanxiaoxiao/node-utils';
 import { createConnector } from '@quanxiaoxiao/socket';
+import {
+  SocketCloseError,
+  NetConnectTimeoutError,
+  DoAbortError,
+} from './errors.mjs';
 
 export default (
   options,
@@ -97,6 +102,7 @@ export default (
         controller.abort();
         const errObj = typeof error === 'string' ? new Error(error) : error;
         errObj.isConnect = state.isConnect;
+        errObj.state = getState();
         reject(errObj);
       }
     }
@@ -188,7 +194,7 @@ export default (
     function handleAbortOnSignal() {
       clearTick();
       state.isEventSignalBind = false;
-      emitError(new Error('abort'));
+      emitError(new DoAbortError());
     }
 
     function clearTick() {
@@ -317,7 +323,7 @@ export default (
         },
         onClose: () => {
           if (state.timeOnResponseEnd == null) {
-            emitError(new Error('Socket Close Error'));
+            emitError(new SocketCloseError());
           }
         },
       },
@@ -363,7 +369,7 @@ export default (
     if (!controller.signal.aborted) {
       state.tick = setTimeout(() => {
         state.tick = null;
-        emitError(new Error('Socket Connect Timeout Error'));
+        emitError(new NetConnectTimeoutError());
       }, 1000 * 15);
     }
 
