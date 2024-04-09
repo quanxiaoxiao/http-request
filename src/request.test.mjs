@@ -1485,7 +1485,7 @@ test('request onBody stream no resume, but socket is close', async () => {
   server.close();
 });
 
-test('request response chunk invalid', { only: true }, async () => {
+test('request response chunk invalid', async () => {
   const port = getPort();
   const server = net.createServer((socket) => {
     socket.on('data', () => {});
