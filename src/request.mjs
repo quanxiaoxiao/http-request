@@ -54,6 +54,8 @@ export default (
 
       isEventSignalBind: false,
 
+      isRequestBodyStreamBind: false,
+
       dateTime: Date.now(),
       timeOnStart: performance.now(),
       timeOnConnect: null,
@@ -117,7 +119,7 @@ export default (
           }
           const ret = state.connector.write(chunk);
           if (ret === false
-            && state.request.body instanceof Readable
+            && state.isRequestBodyStreamBind
             && !state.request.body.isPaused()
           ) {
             state.request.body.pause();
@@ -249,9 +251,6 @@ export default (
                 if (!controller.signal.aborted) {
                   state.timeOnRequestSend = calcTime();
                   outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
-                  if (state.request.body.isPaused()) {
-                    state.request.body.resume();
-                  }
                 }
               },
             });
@@ -274,6 +273,10 @@ export default (
                       emitError(error);
                     },
                   });
+                  state.isRequestBodyStreamBind = true;
+                  if (state.request.body.isPaused()) {
+                    state.request.body.resume();
+                  }
                 } catch (error) {
                   emitError(error);
                 }
@@ -312,7 +315,7 @@ export default (
         },
         onDrain: () => {
           if (!controller.signal.aborted
-            && state.request.body instanceof Readable
+            && state.isRequestBodyStreamBind
             && state.request.body.isPaused()
           ) {
             state.request.body.resume();
