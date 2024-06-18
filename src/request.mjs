@@ -4,7 +4,10 @@ import net from 'node:net';
 import process from 'node:process';
 import { Writable, Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
-import { encodeHttp, decodeHttpResponse } from '@quanxiaoxiao/http-utils';
+import {
+  encodeHttp,
+  decodeHttpResponse,
+} from '@quanxiaoxiao/http-utils';
 import {
   wrapStreamWrite,
   wrapStreamRead,
@@ -19,6 +22,7 @@ import {
 export default (
   options,
   getConnect,
+  keepAlive,
 ) => {
   assert(typeof getConnect === 'function');
 
@@ -183,10 +187,14 @@ export default (
             if (!controller.signal.aborted) {
               resolve(getState());
             }
-            try {
-              state.connector.end();
-            } catch (error) {
-              // ignore
+            if (keepAlive) {
+              state.connector.detach();
+            } else {
+              try {
+                state.connector.end();
+              } catch (error) { // eslint-disable-line
+                // ignore
+              }
             }
           }
         },
@@ -249,8 +257,8 @@ export default (
               body: state.request.body,
               onHeader: (chunkRequestHeaders) => {
                 if (!controller.signal.aborted) {
-                  state.timeOnRequestSend = calcTime();
                   outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
+                  state.timeOnRequestSend = calcTime();
                 }
               },
             });
@@ -357,10 +365,14 @@ export default (
             if (!controller.signal.aborted) {
               resolve(getState());
             }
-            try {
-              state.connector.end();
-            } catch (error) {
-              // ignore
+            if (keepAlive) {
+              state.connector.detach();
+            } else {
+              try {
+                state.connector.end();
+              } catch (error) { // eslint-disable-line
+                // ignore
+              }
             }
           },
         });
