@@ -5,6 +5,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { test, mock } from 'node:test';
 import _ from 'lodash';
+import { waitFor } from '@quanxiaoxiao/utils';
 import {
   encodeHttp,
   decodeHttpRequest,
@@ -23,14 +24,6 @@ const _getPort = () => {
 
 const getPort = _getPort();
 
-const waitFor = async (t = 100) => {
-  await new Promise((resolve) => {
-    setTimeout(() => {
-      resolve();
-    }, t);
-  });
-};
-
 const connect = (port) => () => {
   const socket = net.Socket();
   socket.connect({
@@ -40,7 +33,7 @@ const connect = (port) => () => {
   return socket;
 };
 
-test('request signal aborted', () => {
+test('request signal aborted',  () => {
   assert.throws(
     () => {
       const controller = new AbortController();
@@ -60,7 +53,7 @@ test('request signal aborted', () => {
   );
 });
 
-test('request socket unable connect 1', async () => {
+test('request socket unable connect 1',  async () => {
   const port = getPort();
   try {
     await request(
@@ -82,7 +75,7 @@ test('request socket unable connect 1', async () => {
   }
 });
 
-test('request socket unable connect 2', async () => {
+test('request socket unable connect 2',  async () => {
   try {
     await request(
       {
@@ -97,7 +90,7 @@ test('request socket unable connect 2', async () => {
   await waitFor();
 });
 
-test('request', async () => {
+test('request',  async () => {
   const port = getPort();
 
   const handleDataOnSocket = mock.fn(() => {});
@@ -127,7 +120,7 @@ test('request', async () => {
   assert.equal(handleDataOnSocket.mock.calls.length, 1);
 });
 
-test('request onBody with stream, response with empty', async () => {
+test('request onBody with stream, response with empty',  async () => {
   const port = getPort();
 
   const handleDataOnSocket = mock.fn(() => {});
@@ -704,7 +697,7 @@ test('request signal', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
 
-test('request outgoing trigger error', async () => {
+test('request outgoing trigger error',  async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});
   const handleCloseOnSocket = mock.fn(() => {});

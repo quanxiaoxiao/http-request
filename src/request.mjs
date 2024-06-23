@@ -1,4 +1,3 @@
-/* eslint no-use-before-define: 0 */
 import assert from 'node:assert';
 import net from 'node:net';
 import process from 'node:process';
@@ -257,7 +256,7 @@ export default (
               body: state.request.body,
               onHeader: (chunkRequestHeaders) => {
                 if (!controller.signal.aborted) {
-                  outgoing(Buffer.concat([chunkRequestHeaders, Buffer.from('\r\n')]));
+                  outgoing(chunkRequestHeaders);
                   state.timeOnRequestSend = calcTime();
                 }
               },
@@ -282,10 +281,13 @@ export default (
                     },
                   });
                   state.isRequestBodyStreamBind = true;
-                  if (state.request.body.isPaused()) {
-                    state.request.body.resume();
-                  }
+                  setTimeout(() => {
+                    if (state.request.body.isPaused()) {
+                      state.request.body.resume();
+                    }
+                  });
                 } catch (error) {
+                  console.log(error);
                   emitError(error);
                 }
               }
