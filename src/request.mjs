@@ -48,7 +48,6 @@ export default (
 
   return new Promise((resolve, reject) => {
     const state = {
-      isConnect: false,
       tick: null,
       connector: null,
       bytesIncoming: 0,
@@ -104,7 +103,7 @@ export default (
       if (!controller.signal.aborted) {
         controller.abort();
         const errObj = typeof error === 'string' ? new Error(error) : error;
-        errObj.isConnect = state.isConnect;
+        errObj.isConnect = state.timeOnConnect != null;
         errObj.state = getState();
         reject(errObj);
       }
@@ -240,10 +239,9 @@ export default (
       {
         onConnect: async () => {
           clearTick();
-          state.isConnect = true;
           state.timeOnConnect = calcTime();
           if (onRequest) {
-            await onRequest(state.request);
+            await onRequest(state.request, getState());
             assert(!controller.signal.aborted);
           }
           if (state.request.body instanceof Readable) {
@@ -291,7 +289,8 @@ export default (
             });
           } else {
             state.timeOnRequestSend = calcTime();
-            if (state.request.body) {
+            if (state.request.body != null) {
+              assert(Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string');
               state.request.bytesBody = Buffer.byteLength(state.request.body);
             }
             outgoing(encodeHttp(state.request));
