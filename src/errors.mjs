@@ -1,5 +1,5 @@
 /* eslint max-classes-per-file: 0 */
-import { HttpParserError } from '@quanxiaoxiao/http-utils';
+import { DecodeHttpError } from '@quanxiaoxiao/http-utils';
 
 class SocketCloseError extends Error {
   constructor(message) {
@@ -26,5 +26,5 @@ export {
   NetConnectTimeoutError,
   DoAbortError,
   SocketCloseError,
-  HttpParserError,
+  DecodeHttpError,
 };

@@ -9,7 +9,7 @@ import { waitFor } from '@quanxiaoxiao/utils';
 import {
   encodeHttp,
   decodeHttpRequest,
-  HttpParserError,
+  DecodeHttpError,
 } from '@quanxiaoxiao/http-utils';
 import request from './request.mjs';
 
@@ -1507,7 +1507,7 @@ test('request response chunk invalid', async () => {
     );
     throw new Error('xxxxx');
   } catch (error) {
-    assert(error instanceof HttpParserError);
+    assert(error instanceof DecodeHttpError);
   }
   await waitFor(200);
   server.close();
