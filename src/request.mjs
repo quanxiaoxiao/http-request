@@ -57,8 +57,6 @@ export default (
 
       isEventSignalBind: false,
 
-      isRequestBodyStreamBind: false,
-
       dateTime: Date.now(),
       timeOnStart: performance.now(),
       timeOnConnect: null,
@@ -74,7 +72,7 @@ export default (
         path: options.path || '/',
         method: options.method || 'GET',
         headers: options.headers || {},
-        body: options.body || null,
+        body: options.body ?? null,
         bytesBody: 0,
       },
 
@@ -122,7 +120,7 @@ export default (
           }
           const ret = state.connector.write(chunk);
           if (ret === false
-            && state.isRequestBodyStreamBind
+            && state.request.body instanceof Readable
             && !state.request.body.isPaused()
           ) {
             state.request.body.pause();
@@ -280,7 +278,6 @@ export default (
                       emitError(error);
                     },
                   });
-                  state.isRequestBodyStreamBind = true;
                   setTimeout(() => {
                     if (state.request.body.isPaused()) {
                       state.request.body.resume();
@@ -325,7 +322,7 @@ export default (
         },
         onDrain: () => {
           if (!controller.signal.aborted
-            && state.isRequestBodyStreamBind
+            && state.request.body instanceof Readable
             && state.request.body.isPaused()
           ) {
             state.request.body.resume();
