@@ -5,7 +5,7 @@ import {
   NetConnectTimeoutError,
   DoAbortError,
   SocketCloseError,
-  HttpParserError,
+  DecodeHttpError,
 } from './errors.mjs';
 
 export {
@@ -16,7 +16,7 @@ export {
   NetConnectTimeoutError,
   DoAbortError,
   SocketCloseError,
-  HttpParserError,
+  DecodeHttpError,
 };
 
 export default request;
