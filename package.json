@@ -23,7 +23,7 @@
     "node": ">= 20.0.0"
   },
   "dependencies": {
-    "@quanxiaoxiao/http-utils": "^0.15.0",
+    "@quanxiaoxiao/http-utils": "^0.16.0",
     "@quanxiaoxiao/node-utils": "^0.9.0",
     "@quanxiaoxiao/socket": "^0.7.0",
     "lodash": "^4.17.21"

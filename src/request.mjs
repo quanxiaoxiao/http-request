@@ -6,6 +6,7 @@ import { Buffer } from 'node:buffer';
 import {
   encodeHttp,
   decodeHttpResponse,
+  isHttpStream,
 } from '@quanxiaoxiao/http-utils';
 import {
   wrapStreamWrite,
@@ -332,13 +333,27 @@ export default (
         },
         onClose: () => {
           if (state.timeOnResponseEnd == null) {
-            emitError(new SocketCloseError());
+            if (state.timeOnResponseHeader != null && isHttpStream(state.response.headers)) {
+              unbindSignalEvent();
+              if (!controller.signal.aborted) {
+                if (state.response._write) {
+                  state.response._write();
+                }
+                resolve(getState());
+              }
+            } else {
+              emitError(new SocketCloseError());
+            }
           }
         },
       },
       () => socket,
       controller.signal,
     );
+
+    if (onBody) {
+      assert(typeof onBody === 'function' || onBody instanceof Writable);
+    }
 
     if (onBody instanceof Writable) {
       try {

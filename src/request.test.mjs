@@ -1512,3 +1512,46 @@ test('request response chunk invalid', async () => {
   await waitFor(200);
   server.close();
 });
+
+test('request response with stream', { only: true }, async () => {
+  const port = getPort();
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.write(`HTTP/1.1 200 OK\r\nServer: quan\r\n\r\naaaa`);
+    }, 100);
+    setTimeout(() => {
+      socket.write('bbbb');
+    }, 200);
+    setTimeout(() => {
+      socket.write('cccc');
+    }, 300);
+    setTimeout(() => {
+      socket.end();
+    }, 500);
+  });
+
+  server.listen(port);
+  await waitFor(100);
+  const onBody = new PassThrough();
+  const onData = mock.fn(() => {});
+  onBody.on('data', onData);
+  request(
+    {
+      path: '/aaaaa',
+      headers: {
+        name: 'aa',
+      },
+      body: null,
+      onBody,
+    },
+    connect(port),
+  );
+  await waitFor(1000);
+  assert(onBody.writableEnded);
+  assert.equal(onData.mock.calls.length, 3);
+  assert.equal(onData.mock.calls[0].arguments[0].toString(), 'aaaa');
+  assert.equal(onData.mock.calls[1].arguments[0].toString(), 'bbbb');
+  assert.equal(onData.mock.calls[2].arguments[0].toString(), 'cccc');
+  server.close();
+});
