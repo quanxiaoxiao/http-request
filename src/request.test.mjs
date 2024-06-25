@@ -1513,7 +1513,7 @@ test('request response chunk invalid', async () => {
   server.close();
 });
 
-test('request response with stream', { only: true }, async () => {
+test('request response with stream', async () => {
   const port = getPort();
   const server = net.createServer((socket) => {
     socket.on('data', () => {});

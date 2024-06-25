@@ -56,6 +56,7 @@ export default (
       decode: null,
 
       isEventSignalBind: false,
+      isConnectClose: false,
 
       dateTime: Date.now(),
       timeOnStart: performance.now(),
@@ -150,6 +151,9 @@ export default (
           if (onHeader) {
             await onHeader(getState());
             assert(!controller.signal.aborted);
+          }
+          if (isHttpStream(ret.headers)) {
+            assert(onBody instanceof Writable);
           }
         },
         onBody: (bodyChunk) => {
@@ -329,18 +333,14 @@ export default (
           }
         },
         onError: (error) => {
+          state.isConnectClose = true;
           emitError(error);
         },
         onClose: () => {
+          state.isConnectClose = true;
           if (state.timeOnResponseEnd == null) {
             if (state.timeOnResponseHeader != null && isHttpStream(state.response.headers)) {
-              unbindSignalEvent();
-              if (!controller.signal.aborted) {
-                if (state.response._write) {
-                  state.response._write();
-                }
-                resolve(getState());
-              }
+              state.response._write();
             } else {
               emitError(new SocketCloseError());
             }
@@ -378,13 +378,15 @@ export default (
             if (!controller.signal.aborted) {
               resolve(getState());
             }
-            if (keepAlive) {
-              state.connector.detach();
-            } else {
-              try {
-                state.connector.end();
-              } catch (error) { // eslint-disable-line
-                // ignore
+            if (!state.isConnectClose) {
+              if (keepAlive) {
+                state.connector.detach();
+              } else {
+                try {
+                  state.connector.end();
+                } catch (error) { // eslint-disable-line
+                  // ignore
+                }
               }
             }
           },
