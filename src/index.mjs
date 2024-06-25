@@ -1,6 +1,5 @@
 import request from './request.mjs';
-import httpRequest from './httpRequest.mjs';
-import httpsRequest from './httpsRequest.mjs';
+import getSocketConnect from './getSocketConnect.mjs';
 import {
   NetConnectTimeoutError,
   DoAbortError,
@@ -9,9 +8,8 @@ import {
 } from './errors.mjs';
 
 export {
-  httpRequest,
-  httpsRequest,
   request,
+  getSocketConnect,
 
   NetConnectTimeoutError,
   DoAbortError,
