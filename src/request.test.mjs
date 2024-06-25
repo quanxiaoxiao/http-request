@@ -1636,7 +1636,7 @@ test('request request body stream backpress', async () => {
   server.close();
 });
 
-test('request response body stream backpress', { only: true }, async () => {
+test('request response body stream backpress', async () => {
   const port = getPort();
   let isPaused = false;
   let i = 0;
