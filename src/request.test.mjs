@@ -1555,3 +1555,148 @@ test('request response with stream', async () => {
   assert.equal(onData.mock.calls[2].arguments[0].toString(), 'cccc');
   server.close();
 });
+
+test('request request body stream backpress', async () => {
+  const port = getPort();
+  const pathname = path.resolve(process.cwd(), `test_${Date.now()}_eadsfebcsww_7878`);
+  const ws = fs.createWriteStream(pathname);
+  const server = net.createServer((socket) => {
+    ws.on('drain', () => {
+      if (socket.isPaused()) {
+        socket.resume();
+      }
+    });
+    const decode = decodeHttpRequest({
+      onBody: (chunk) => {
+        const ret = ws.write(chunk);
+        if (!ret) {
+          socket.pause();
+        }
+      },
+      onEnd: () => {
+        socket.write(encodeHttp({
+          statusCode: 200,
+          headers: {
+            name: 'foo',
+          },
+          body: 'aaaccc',
+        }));
+        ws.end();
+      },
+    });
+    socket.on('data', (chunk) => {
+      decode(chunk);
+    });
+  });
+  server.listen(port);
+  await waitFor(100);
+  const requestBodyStream = new PassThrough();
+  let isPaused = false;
+  let i = 0;
+  const count = 3000;
+  const content = 'aaaaabbbbbbbbcccccccddddd___adfw';
+  const walk = () => {
+    while (!isPaused && i < count) {
+      const s = `${_.times(800).map(() => content).join('')}:${i}`;
+      const ret = requestBodyStream.write(s);
+      if (ret === false) {
+        isPaused = true;
+      }
+      i++;
+    }
+    if (i >= count && !requestBodyStream.writableEnded) {
+      setTimeout(() => {
+        if (!requestBodyStream.writableEnded) {
+          requestBodyStream.end();
+        }
+      }, 500);
+    }
+  };
+  const handleDrain = mock.fn(() => {
+    isPaused = false;
+    walk();
+  });
+  requestBodyStream.on('drain', handleDrain);
+  const ret = await request({
+    path: '/aaa',
+    onRequest: () => {
+      setTimeout(() => {
+        walk();
+      }, 10);
+    },
+    body: requestBodyStream,
+  }, connect(port));
+  assert.equal(ret.statusCode, 200);
+  assert.deepEqual(ret.headers, { name: 'foo', 'content-length': 6 });
+  assert(ws.writableEnded);
+  assert(handleDrain.mock.calls.length > 1);
+  const buf = fs.readFileSync(pathname);
+  assert(new RegExp(`:${count - 1}$`).test(buf.toString()));
+  fs.unlinkSync(pathname);
+  server.close();
+});
+
+test('request response body stream backpress', { only: true }, async () => {
+  const port = getPort();
+  let isPaused = false;
+  let i = 0;
+  let isEnd = false;
+  const count = 3000;
+  const content = 'aaaaabbbbbbbbcccccccddddd___adfw';
+  const pathname = path.resolve(process.cwd(), `test_${Date.now()}_iiwqw_7878`);
+  const ws = fs.createWriteStream(pathname);
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    const encode = encodeHttp({
+      headers: {
+        server: 'quan',
+      },
+    });
+    const walk = () => {
+      while (!isPaused && i < count) {
+        const s = `${_.times(800).map(() => content).join('')}:${i}`;
+        const ret = socket.write(encode(s));
+        if (ret === false) {
+          isPaused = true;
+        }
+        i++;
+      }
+      if (i >= count && !isEnd) {
+        setTimeout(() => {
+          if (!isEnd) {
+            isEnd = true;
+            socket.write(encode());
+          }
+        }, 500);
+      }
+    };
+    socket.on('drain', () => {
+      isPaused = false;
+      walk();
+    });
+    setTimeout(() => {
+      walk();
+    }, 100);
+  });
+  server.listen(port);
+  await waitFor(100);
+  const responseBodyStream = new PassThrough();
+  responseBodyStream.pipe(ws);
+  const ret = await request(
+    {
+      path: '/aaaaa',
+      headers: {
+        name: 'aa',
+      },
+      body: null,
+      onBody: responseBodyStream,
+    },
+    connect(port),
+  );
+  assert.equal(ret.statusCode, 200);
+  assert.deepEqual(ret.headers, {  server: 'quan', 'transfer-encoding': 'chunked' });
+  const buf = fs.readFileSync(pathname);
+  assert(new RegExp(`:${count - 1}$`).test(buf.toString()));
+  fs.unlinkSync(pathname);
+  server.close();
+});
