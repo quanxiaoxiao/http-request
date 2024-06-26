@@ -45,6 +45,10 @@ export default (
 
   assert(socket && socket instanceof net.Socket);
 
+  if (onBody) {
+    assert(typeof onBody === 'function' || onBody instanceof Writable);
+  }
+
   const controller = new AbortController();
 
   return new Promise((resolve, reject) => {
@@ -350,10 +354,6 @@ export default (
       () => socket,
       controller.signal,
     );
-
-    if (onBody) {
-      assert(typeof onBody === 'function' || onBody instanceof Writable);
-    }
 
     if (onBody instanceof Writable) {
       try {
