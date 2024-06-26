@@ -82,7 +82,7 @@ export default (
       },
 
       response: {
-        body: Buffer.from([]),
+        body: null,
         statusCode: null,
         httpVersion: null,
         statusText: null,
@@ -170,6 +170,9 @@ export default (
           } else if (onBody) {
             onBody(bodyChunk);
           } else {
+            if (state.response.body == null) {
+              state.response.body = Buffer.from([]);
+            }
             state.response.body = Buffer.concat([
               state.response.body,
               bodyChunk,

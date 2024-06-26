@@ -244,7 +244,7 @@ test('request', async () => {
   const handleCloseOnSocket = mock.fn(() => {});
   const onHeader = mock.fn((state) => {
     assert.equal(state.statusCode, 200);
-    assert.equal(state.body.toString(), '');
+    assert.equal(state.body, null);
     assert.deepEqual(state.headers, { server: 'quan', 'content-length': 2 });
     assert.deepEqual(state.headersRaw, ['server', 'quan', 'Content-Length', '2']);
   });
@@ -384,7 +384,7 @@ test('request onBody', async () => {
     },
     connect(port),
   );
-  assert.equal(ret.body.toString(), '');
+  assert.equal(ret.body, null);
   assert.equal(ret.headers['content-length'], 5);
   assert.equal(ret.statusCode, 200);
   assert.equal(onBody.mock.calls.length, 3);
@@ -564,7 +564,7 @@ test('request onBody with stream', async () => {
     },
     connect(port),
   );
-  assert.equal(ret.body.toString(), '');
+  assert.equal(ret.body, null);
   assert(onBody.destroyed);
   assert(!onBody.eventNames().includes('close'));
   assert(!onBody.eventNames().includes('drain'));
@@ -1180,7 +1180,7 @@ test('request onBody with stream', async () => {
 
   server.close();
 
-  assert.equal(ret.body.toString(), '');
+  assert.equal(ret.body, null);
   assert(!onBody.eventNames().includes('drain'));
   assert(!onBody.eventNames().includes('close'));
   await waitFor(100);
@@ -1698,5 +1698,41 @@ test('request response body stream backpress', async () => {
   const buf = fs.readFileSync(pathname);
   assert(new RegExp(`:${count - 1}$`).test(buf.toString()));
   fs.unlinkSync(pathname);
+  server.close();
+});
+
+test('request response 500', async () => {
+  const port = getPort();
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.write('HTTP/1.1 500\r\nServer: quan\r\n\r\n');
+    }, 80);
+  });
+  server.listen(port);
+  await waitFor(100);
+  const onBody = new PassThrough();
+  const ret = await request({
+    onBody,
+  }, connect(port));
+  assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 0});
+  await waitFor(200);
+  assert.equal(onBody.destroyed, true);
+  server.close();
+});
+
+test('request response 500', { only: true }, async () => {
+  const port = getPort();
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.write('HTTP/1.1 500\r\nServer: quan\r\n\r\n');
+    }, 80);
+  });
+  server.listen(port);
+  await waitFor(100);
+  const ret = await request({
+  }, connect(port));
+  assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 0});
   server.close();
 });
