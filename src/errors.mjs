@@ -1,4 +1,3 @@
-/* eslint max-classes-per-file: 0 */
 import { DecodeHttpError } from '@quanxiaoxiao/http-utils';
 
 class SocketCloseError extends Error {

@@ -294,19 +294,18 @@ export default (
                     }
                   });
                 } catch (error) {
-                  console.log(error);
                   emitError(error);
                 }
               }
             });
           } else {
-            state.timeOnRequestSend = calcTime();
             if (state.request.body != null) {
               assert(Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string');
               state.request.bytesBody = Buffer.byteLength(state.request.body);
             }
             outgoing(encodeHttp(state.request));
-            state.timeOnRequestEnd = calcTime();
+            state.timeOnRequestSend = calcTime();
+            state.timeOnRequestEnd = state.timeOnRequestSend;
           }
         },
         onData: (chunk) => {
