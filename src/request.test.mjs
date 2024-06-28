@@ -259,11 +259,11 @@ test('request', async () => {
     assert.equal(options.body, 'quan1');
     assert.deepEqual(options.headers, { name: 'aaa' });
   });
-  const onIncoming = mock.fn((chunk) => {
+  const onChunkIncoming = mock.fn((chunk) => {
     assert.equal(chunk.toString(), 'HTTP/1.1 200 OK\r\nserver: quan\r\nContent-Length: 2\r\n\r\nok');
   });
-  const onOutgoing = mock.fn((chunk) => {
-    assert.equal(onIncoming.mock.calls.length, 0);
+  const onChunkOutgoing = mock.fn((chunk) => {
+    assert.equal(onChunkIncoming.mock.calls.length, 0);
     assert.equal(chunk.toString(), 'POST /abc?name=aaa HTTP/1.1\r\nname: aaa\r\nContent-Length: 5\r\n\r\nquan1');
   });
 
@@ -289,8 +289,8 @@ test('request', async () => {
       onRequest,
       onStartLine,
       onHeader,
-      onOutgoing,
-      onIncoming,
+      onChunkOutgoing,
+      onChunkIncoming,
     },
     connect(port),
   );
@@ -307,8 +307,8 @@ test('request', async () => {
   assert.equal(onRequest.mock.calls.length, 1);
   assert.equal(onStartLine.mock.calls.length, 1);
   assert.equal(onHeader.mock.calls.length, 1);
-  assert.equal(onIncoming.mock.calls.length, 1);
-  assert.equal(onOutgoing.mock.calls.length, 1);
+  assert.equal(onChunkIncoming.mock.calls.length, 1);
+  assert.equal(onChunkOutgoing.mock.calls.length, 1);
 });
 
 test('request by response too early', async () => {
@@ -316,8 +316,8 @@ test('request by response too early', async () => {
   const handleDataOnSocket = mock.fn(() => {});
   const handleCloseOnSocket = mock.fn(() => {});
   const onStartLine = mock.fn(() => {});
-  const onIncoming = mock.fn(() => {});
-  const onOutgoing = mock.fn(() => {});
+  const onChunkIncoming = mock.fn(() => {});
+  const onChunkOutgoing = mock.fn(() => {});
 
   const server = net.createServer((socket) => {
     socket.on('data', handleDataOnSocket);
@@ -341,8 +341,8 @@ test('request by response too early', async () => {
         assert.equal(handleCloseOnSocket.mock.calls.length, 0);
       },
       onStartLine,
-      onIncoming,
-      onOutgoing,
+      onChunkIncoming,
+      onChunkOutgoing,
     },
     connect(port),
   );
@@ -353,8 +353,8 @@ test('request by response too early', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   assert.equal(handleDataOnSocket.mock.calls.length, 1);
   assert.equal(onStartLine.mock.calls.length, 1);
-  assert.equal(onIncoming.mock.calls.length, 1);
-  assert.equal(onOutgoing.mock.calls.length, 1);
+  assert.equal(onChunkIncoming.mock.calls.length, 1);
+  assert.equal(onChunkOutgoing.mock.calls.length, 1);
 });
 
 test('request onBody', async () => {
@@ -453,7 +453,7 @@ test('request onStartLine trigger error', async () => {
   });
   server.listen(port);
   const controller = new AbortController();
-  const onIncoming = mock.fn(() => {
+  const onChunkIncoming = mock.fn(() => {
   });
   const onStartLine = mock.fn(async () => {
     await waitFor(300);
@@ -468,7 +468,7 @@ test('request onStartLine trigger error', async () => {
         headers: { name: 'aaa' },
         signal: controller.signal,
         onStartLine,
-        onIncoming,
+        onChunkIncoming,
         onHeader,
       },
       connect(port),
@@ -480,7 +480,7 @@ test('request onStartLine trigger error', async () => {
   await waitFor(500);
   assert(!controller.signal.aborted);
   assert.equal(onStartLine.mock.calls.length, 1);
-  assert.equal(onIncoming.mock.calls.length, 1);
+  assert.equal(onChunkIncoming.mock.calls.length, 1);
   assert.equal(onHeader.mock.calls.length, 0);
   assert.equal(handleDataOnSocket.mock.calls.length, 1);
 
@@ -706,13 +706,13 @@ test('request outgoing trigger error',  async () => {
     socket.on('close', handleCloseOnSocket);
   });
   server.listen(port);
-  const onOutgoing = mock.fn(() => {
+  const onChunkOutgoing = mock.fn(() => {
     throw new Error('cccccc');
   });
   try {
     await request(
       {
-        onOutgoing,
+        onChunkOutgoing,
       },
       connect(port),
     );

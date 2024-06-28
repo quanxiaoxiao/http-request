@@ -33,8 +33,8 @@ export default (
     onHeader,
     onEnd,
     onBody,
-    onOutgoing,
-    onIncoming,
+    onChunkOutgoing,
+    onChunkIncoming,
   } = options;
 
   if (signal) {
@@ -115,13 +115,13 @@ export default (
       }
     }
 
-    function outgoing(chunk) {
+    function doOutgoing(chunk) {
       const size = chunk.length;
       if (size > 0) {
         try {
           state.bytesOutgoing += size;
-          if (onOutgoing) {
-            onOutgoing(chunk);
+          if (onChunkOutgoing) {
+            onChunkOutgoing(chunk);
           }
           const ret = state.connector.write(chunk);
           if (ret === false
@@ -264,7 +264,7 @@ export default (
               body: state.request.body,
               onHeader: (chunkRequestHeaders) => {
                 if (!controller.signal.aborted) {
-                  outgoing(chunkRequestHeaders);
+                  doOutgoing(chunkRequestHeaders);
                   state.timeOnRequestSend = calcTime();
                 }
               },
@@ -278,10 +278,10 @@ export default (
                     signal: controller.signal,
                     onData: (chunk) => {
                       state.request.bytesBody += chunk.length;
-                      outgoing(encodeRequest(chunk));
+                      doOutgoing(encodeRequest(chunk));
                     },
                     onEnd: () => {
-                      outgoing(encodeRequest());
+                      doOutgoing(encodeRequest());
                       state.timeOnRequestEnd = calcTime();
                     },
                     onError: (error) => {
@@ -303,7 +303,7 @@ export default (
               assert(Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string');
               state.request.bytesBody = Buffer.byteLength(state.request.body);
             }
-            outgoing(encodeHttp(state.request));
+            doOutgoing(encodeHttp(state.request));
             state.timeOnRequestSend = calcTime();
             state.timeOnRequestEnd = state.timeOnRequestSend;
           }
@@ -318,8 +318,8 @@ export default (
             bindResponseDecode();
           }
           if (size > 0) {
-            if (onIncoming) {
-              onIncoming(chunk);
+            if (onChunkIncoming) {
+              onChunkIncoming(chunk);
             }
             state.decode(chunk)
               .then(
