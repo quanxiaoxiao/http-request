@@ -10,7 +10,7 @@ export default ({
   rejectUnauthorized = true,
 }) => {
   if (port != null) {
-    assert(port >= 0 && port <= 65535);
+    assert(port >= 0 && port <= 65535 && Number.isInteger(port));
   }
   if (protocol === 'https:') {
     const options = {

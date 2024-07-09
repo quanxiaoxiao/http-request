@@ -1,7 +1,6 @@
 import assert from 'node:assert';
 import net from 'node:net';
 import { test, mock } from 'node:test';
-import _ from 'lodash';
 import { waitFor } from '@quanxiaoxiao/utils';
 import getSocketConnect from './getSocketConnect.mjs';
 
@@ -30,6 +29,14 @@ test('getSocketConnect invalid', () => {
     () => {
       getSocketConnect({
         port: 65536,
+      });
+    },
+    (error) => error instanceof assert.AssertionError,
+  );
+  assert.throws(
+    () => {
+      getSocketConnect({
+        port: 88.8,
       });
     },
     (error) => error instanceof assert.AssertionError,
