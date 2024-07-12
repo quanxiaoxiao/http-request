@@ -11,6 +11,7 @@ import {
   decodeHttpRequest,
   DecodeHttpError,
 } from '@quanxiaoxiao/http-utils';
+import getSocketConnect from './getSocketConnect.mjs';
 import request from './request.mjs';
 
 const _getPort = () => {
@@ -23,15 +24,6 @@ const _getPort = () => {
 };
 
 const getPort = _getPort();
-
-const connect = (port) => () => {
-  const socket = net.Socket();
-  socket.connect({
-    host: '127.0.0.1',
-    port,
-  });
-  return socket;
-};
 
 test('request signal aborted',  () => {
   assert.throws(
@@ -81,7 +73,7 @@ test('request socket unable connect 2',  async () => {
       {
         path: '/aaa',
       },
-      connect(9989),
+      () => getSocketConnect({ port: 9989 }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -110,9 +102,12 @@ test('request',  async () => {
 
   const controller = new AbortController();
 
-  const ret = await request({
-    signal: controller.signal,
-  }, connect(port));
+  const ret = await request(
+    {
+      signal: controller.signal,
+    },
+    () => getSocketConnect({ port })
+  );
   assert(!controller.signal.aborted);
   assert.equal(ret.statusCode, 204);
   await waitFor(100);
@@ -140,9 +135,12 @@ test('request onBody with stream, response with empty',  async () => {
 
   const onBody = new PassThrough();
 
-  const ret = await request({
-    onBody,
-  }, connect(port));
+  const ret = await request(
+    {
+      onBody,
+    },
+    () => getSocketConnect({ port }),
+  );
   assert.equal(ret.statusCode, 204);
   await waitFor(100);
   assert(onBody.destroyed);
@@ -174,7 +172,7 @@ test('server close socket with no response', async () => {
   server.listen(port);
 
   try {
-    await request({}, connect(port));
+    await request({}, () => getSocketConnect({ port }));
     throw new Error('xxx');
   } catch (error) {
     assert(error.isConnect);
@@ -198,7 +196,7 @@ test('server response with not full chunk', async () => {
   });
   server.listen(port);
   try {
-    await request({}, connect(port));
+    await request({}, () => getSocketConnect({ port }));
     throw new Error('xxx');
   } catch (error) {
     assert(error.isConnect);
@@ -226,7 +224,7 @@ test('request onRequest trigger error', async () => {
           throw new Error('eeee');
         },
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -292,7 +290,7 @@ test('request', async () => {
       onChunkOutgoing,
       onChunkIncoming,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   server.close();
   assert.equal(ret.body.toString(), 'ok');
@@ -344,7 +342,7 @@ test('request by response too early', async () => {
       onChunkIncoming,
       onChunkOutgoing,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   assert.equal(ret.statusCode, 200);
   assert.equal(ret.body.toString(), 'ok');
@@ -382,7 +380,7 @@ test('request onBody', async () => {
     {
       onBody,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   assert.equal(ret.body, null);
   assert.equal(ret.headers['content-length'], 5);
@@ -420,7 +418,7 @@ test('request onHeader trigger error', async () => {
         onHeader,
         onBody,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxxx');
   } catch (error) {
@@ -471,7 +469,7 @@ test('request onStartLine trigger error', async () => {
         onChunkIncoming,
         onHeader,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -517,7 +515,7 @@ test('request onBody trigger error', async () => {
       {
         onBody,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -562,7 +560,7 @@ test('request onBody with stream', async () => {
       onBody,
       onHeader,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   assert.equal(ret.body, null);
   assert(onBody.destroyed);
@@ -605,7 +603,7 @@ test('request onBody with stream close', async () => {
       {
         onBody,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxxx');
   } catch (error) {
@@ -643,7 +641,7 @@ test('request onBody with stream, at onHeader trigger error', async () => {
         onHeader,
         onBody,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxxx');
   } catch (error) {
@@ -684,7 +682,7 @@ test('request signal', async () => {
         onStartLine,
         signal: controller.signal,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxxx');
   } catch (error) {
@@ -714,7 +712,7 @@ test('request outgoing trigger error',  async () => {
       {
         onChunkOutgoing,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxxx');
   } catch (error) {
@@ -773,7 +771,7 @@ test('request body with stream', async () => {
       method: 'POST',
       body,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   assert.equal(ret.statusCode, 200);
   assert(body.destroyed);
@@ -805,7 +803,7 @@ test('request body with stream, before send is closed', async () => {
         onRequest,
         body,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -849,7 +847,7 @@ test('request body with stream, stream by close', async () => {
         onRequest,
         body,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -896,7 +894,7 @@ test('request body with stream, stream trigger error', async () => {
         onRequest,
         body,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -934,7 +932,7 @@ test('request request options invalid', async () => {
         },
         onRequest,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -973,7 +971,7 @@ test('request request options invalid 2', async () => {
         body,
         onRequest,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -1036,7 +1034,7 @@ test('request body stream', async () => {
       onRequest,
       body,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   await waitFor(100);
   assert(!body.eventNames().includes('pause'));
@@ -1074,7 +1072,7 @@ test('request remote socket close, stream body unbind events', async () => {
         onRequest,
         body,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxxx');
   } catch (error) {
@@ -1118,7 +1116,7 @@ test('request remote socket close, stream body unbind events 2', async () => {
         onRequest,
         body,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxxx');
   } catch (error) {
@@ -1175,7 +1173,7 @@ test('request onBody with stream', async () => {
       onRequest,
       onBody,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
 
   server.close();
@@ -1246,7 +1244,7 @@ test('request onBody with stream close', async () => {
         body: null,
         onBody,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -1322,7 +1320,7 @@ test('request onBody with stream close 2', async () => {
         body: null,
         onBody,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -1359,9 +1357,12 @@ test('request onEnd', async () => {
 
   const onEnd = mock.fn(() => {});
 
-  const ret = await request({
-    onEnd,
-  }, connect(port));
+  const ret = await request(
+    {
+      onEnd,
+    },
+    () => getSocketConnect({ port }),
+  );
   assert.equal(onEnd.mock.calls.length, 1);
   assert.deepEqual(onEnd.mock.calls[0].arguments[0], ret);
   await waitFor(100);
@@ -1424,7 +1425,7 @@ test('request onBody with stream by signal', async () => {
         body: null,
         onBody,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxx');
   } catch (error) {
@@ -1471,7 +1472,7 @@ test('request onBody stream no resume, but socket is close', async () => {
       onBody,
       onEnd,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   assert.equal(onEnd.mock.calls.length, 1);
   await waitFor(200);
@@ -1503,7 +1504,7 @@ test('request response chunk invalid', async () => {
         },
         body: null,
       },
-      connect(port),
+      () => getSocketConnect({ port }),
     );
     throw new Error('xxxxx');
   } catch (error) {
@@ -1545,7 +1546,7 @@ test('request response with stream', async () => {
       body: null,
       onBody,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   await waitFor(1000);
   assert(onBody.writableEnded);
@@ -1617,15 +1618,18 @@ test('request request body stream backpress', async () => {
     walk();
   });
   requestBodyStream.on('drain', handleDrain);
-  const ret = await request({
-    path: '/aaa',
-    onRequest: () => {
-      setTimeout(() => {
-        walk();
-      }, 10);
+  const ret = await request(
+    {
+      path: '/aaa',
+      onRequest: () => {
+        setTimeout(() => {
+          walk();
+        }, 10);
+      },
+      body: requestBodyStream,
     },
-    body: requestBodyStream,
-  }, connect(port));
+    () => getSocketConnect({ port }),
+  );
   assert.equal(ret.statusCode, 200);
   assert.deepEqual(ret.headers, { name: 'foo', 'content-length': 6 });
   assert(ws.writableEnded);
@@ -1691,7 +1695,7 @@ test('request response body stream backpress', async () => {
       body: null,
       onBody: responseBodyStream,
     },
-    connect(port),
+    () => getSocketConnect({ port }),
   );
   assert.equal(ret.statusCode, 200);
   assert.deepEqual(ret.headers, {  server: 'quan', 'transfer-encoding': 'chunked' });
@@ -1712,9 +1716,12 @@ test('request response 500', async () => {
   server.listen(port);
   await waitFor(100);
   const onBody = new PassThrough();
-  const ret = await request({
-    onBody,
-  }, connect(port));
+  const ret = await request(
+    {
+      onBody,
+    },
+    () => getSocketConnect({ port }),
+  );
   assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 0});
   await waitFor(200);
   assert.equal(onBody.destroyed, true);
@@ -1731,8 +1738,46 @@ test('request response 500', { only: true }, async () => {
   });
   server.listen(port);
   await waitFor(100);
-  const ret = await request({
-  }, connect(port));
+  const ret = await request(
+    {
+    },
+    () => getSocketConnect({ port }),
+  );
   assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 0});
+  server.close();
+});
+
+test('request onStartLine trigger error 11', { only: true }, async () => {
+  const port = getPort();
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.write('HTTP/1.1 404\r\nServer: quan\r\nContent-Length: 4\r\n\r\naaaa');
+    }, 80);
+  });
+  server.listen(port);
+  await waitFor(100);
+  const handleDataOnBody = mock.fn(() => {});
+  const onBody = new PassThrough();
+  onBody.on('data', handleDataOnBody);
+  const onStartLine = mock.fn(() => {
+    assert(!onBody.destroyed);
+    throw new Error('xxxx');
+  });
+  try {
+    await request(
+      {
+        onBody,
+        onStartLine,
+      },
+      () => getSocketConnect({ port }),
+    );
+  } catch (error) {
+    assert(error.message, 'xxxx');
+  }
+  assert(onBody.destroyed);
+  assert(onStartLine.mock.calls.length, 1);
+  await waitFor(100);
+  assert.equal(handleDataOnBody.mock.calls.length, 0);
   server.close();
 });
