@@ -1728,7 +1728,7 @@ test('request response 500', async () => {
   server.close();
 });
 
-test('request response 500', { only: true }, async () => {
+test('request response 500', async () => {
   const port = getPort();
   const server = net.createServer((socket) => {
     socket.on('data', () => {});
@@ -1747,7 +1747,7 @@ test('request response 500', { only: true }, async () => {
   server.close();
 });
 
-test('request onStartLine trigger error 11', { only: true }, async () => {
+test('request onStartLine trigger error 11', async () => {
   const port = getPort();
   const server = net.createServer((socket) => {
     socket.on('data', () => {});

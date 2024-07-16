@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import _ from 'lodash';
 import {
   convertObjectToArray,
-  getValue,
+  getHeaderValue,
   setHeaders,
 } from '@quanxiaoxiao/http-utils';
 
@@ -34,7 +34,7 @@ export default ({
   } else {
     result.headers = ['Host', hostname];
   }
-  if (!getValue(result.headers, 'host')) {
+  if (!getHeaderValue(result.headers, 'host')) {
     result.headers = setHeaders(result.headers, {
       Host: hostname,
     });
