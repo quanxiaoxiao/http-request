@@ -15,7 +15,6 @@ import {
 import { createConnector } from '@quanxiaoxiao/socket';
 import {
   SocketCloseError,
-  NetConnectTimeoutError,
   DoAbortError,
 } from './errors.mjs';
 
@@ -53,7 +52,6 @@ export default (
 
   return new Promise((resolve, reject) => {
     const state = {
-      tick: null,
       connector: null,
       bytesIncoming: 0,
       bytesOutgoing: 0,
@@ -105,7 +103,6 @@ export default (
 
     function emitError(error) {
       unbindSignalEvent();
-      clearTick();
       if (!controller.signal.aborted) {
         controller.abort();
         const errObj = typeof error === 'string' ? new Error(error) : error;
@@ -139,6 +136,11 @@ export default (
     function bindResponseDecode() {
       state.decode = decodeHttpResponse({
         onStartLine: async (ret) => {
+          if (state.request.body instanceof Readable
+            && !state.request.body.readableEnded
+          ) {
+            state.request.body.end();
+          }
           state.response.statusCode = ret.statusCode;
           state.response.httpVersion = ret.httpVersion;
           state.response.statusText = ret.statusText;
@@ -210,16 +212,8 @@ export default (
     }
 
     function handleAbortOnSignal() {
-      clearTick();
       state.isEventSignalBind = false;
       emitError(new DoAbortError());
-    }
-
-    function clearTick() {
-      if (state.tick) {
-        clearTimeout(state.tick);
-        state.tick = null;
-      }
     }
 
     function getState() {
@@ -250,13 +244,13 @@ export default (
     state.connector = createConnector(
       {
         onConnect: async () => {
-          clearTick();
           state.timeOnConnect = calcTime();
           if (onRequest) {
             await onRequest(state.request, getState());
             assert(!controller.signal.aborted);
           }
           if (state.request.body instanceof Readable) {
+            assert(state.request.body.readable);
             const encodeRequest = encodeHttp({
               path: state.request.path,
               method: state.request.method,
@@ -277,12 +271,16 @@ export default (
                     stream: state.request.body,
                     signal: controller.signal,
                     onData: (chunk) => {
-                      state.request.bytesBody += chunk.length;
-                      doOutgoing(encodeRequest(chunk));
+                      if (state.response.statusCode == null) {
+                        state.request.bytesBody += chunk.length;
+                        doOutgoing(encodeRequest(chunk));
+                      }
                     },
                     onEnd: () => {
-                      doOutgoing(encodeRequest());
                       state.timeOnRequestEnd = calcTime();
+                      if (state.response.statusCode == null) {
+                        doOutgoing(encodeRequest());
+                      }
                     },
                     onError: (error) => {
                       emitError(error);
@@ -396,13 +394,6 @@ export default (
       } catch (error) {
         emitError(error);
       }
-    }
-
-    if (!controller.signal.aborted) {
-      state.tick = setTimeout(() => {
-        state.tick = null;
-        emitError(new NetConnectTimeoutError());
-      }, 1000 * 15);
     }
 
     if (signal && !controller.signal.aborted) {

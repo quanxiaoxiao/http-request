@@ -1781,3 +1781,39 @@ test('request onStartLine trigger error 11', async () => {
   assert.equal(handleDataOnBody.mock.calls.length, 0);
   server.close();
 });
+
+test('request response 111', async () => {
+  const port = getPort();
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.write('HTTP/1.1 404\r\nServer: quan\r\nContent-Length: 0\r\n\r\n');
+    }, 80);
+  });
+  server.listen(port);
+  await waitFor(100);
+  const pass = new PassThrough();
+  pass.write('aaa');
+  const onChunkOutgoing = mock.fn();
+  const now = Date.now();
+  const response = await request(
+    {
+      onChunkOutgoing,
+      path: '/aa/bb',
+      headers: {
+        'content-length': 8,
+      },
+      body: pass,
+    },
+    () => getSocketConnect({ port }),
+  );
+  assert(pass.readableEnded);
+  assert(Date.now() - now <= 110);
+  assert.equal(response.statusCode, 404);
+  assert.equal(onChunkOutgoing.mock.calls.length, 2);
+  assert.equal(
+    Buffer.concat(onChunkOutgoing.mock.calls.map((d) => d.arguments[0])).toString(),
+    'GET /aa/bb HTTP/1.1\r\nContent-Length: 8\r\n\r\naaa',
+  );
+  server.close();
+});
