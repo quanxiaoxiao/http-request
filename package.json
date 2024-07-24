@@ -1,6 +1,6 @@
 {
   "name": "@quanxiaoxiao/http-request",
-  "version": "0.37.0",
+  "version": "0.38.0",
   "type": "module",
   "main": "./src/index.mjs",
   "exports": {

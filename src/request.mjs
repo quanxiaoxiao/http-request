@@ -271,9 +271,10 @@ export default (
                     stream: state.request.body,
                     signal: controller.signal,
                     onData: (chunk) => {
+                      state.request.bytesBody += chunk.length;
+                      const buf = encodeRequest(chunk);
                       if (state.response.statusCode == null) {
-                        state.request.bytesBody += chunk.length;
-                        doOutgoing(encodeRequest(chunk));
+                        doOutgoing(buf);
                       }
                     },
                     onEnd: () => {
