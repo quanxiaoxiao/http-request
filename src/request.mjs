@@ -59,6 +59,7 @@ export default (
 
       isEventSignalBind: false,
       isConnectClose: false,
+      isResponseEndEmit: false,
 
       dateTime: Date.now(),
       timeOnStart: performance.now(),
@@ -132,6 +133,26 @@ export default (
         }
       }
     }
+    function emitResponseEnd() {
+      unbindSignalEvent();
+      if (!state.isResponseEndEmit) {
+        state.isResponseEndEmit = true;
+        if (!controller.signal.aborted) {
+          resolve(getState());
+        }
+        if (!state.isConnectClose) {
+          if (keepAlive) {
+            state.connector.detach();
+          } else {
+            try {
+              state.connector.end();
+            } catch (error) { // eslint-disable-line
+              // ignore
+            }
+          }
+        }
+      }
+    }
 
     function bindResponseDecode() {
       state.decode = decodeHttpResponse({
@@ -191,21 +212,9 @@ export default (
             assert(!controller.signal.aborted);
           }
           if (state.response._write) {
-            state.response._write();
+            state.response._write(emitResponseEnd);
           } else {
-            unbindSignalEvent();
-            if (!controller.signal.aborted) {
-              resolve(getState());
-            }
-            if (keepAlive) {
-              state.connector.detach();
-            } else {
-              try {
-                state.connector.end();
-              } catch (error) { // eslint-disable-line
-                // ignore
-              }
-            }
+            emitResponseEnd();
           }
         },
       });
@@ -373,23 +382,6 @@ export default (
           },
           onError: (error) => {
             emitError(error);
-          },
-          onEnd: () => {
-            unbindSignalEvent();
-            if (!controller.signal.aborted) {
-              resolve(getState());
-            }
-            if (!state.isConnectClose) {
-              if (keepAlive) {
-                state.connector.detach();
-              } else {
-                try {
-                  state.connector.end();
-                } catch (error) { // eslint-disable-line
-                  // ignore
-                }
-              }
-            }
           },
         });
       } catch (error) {
