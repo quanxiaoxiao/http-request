@@ -1807,7 +1807,7 @@ test('request response 111', async () => {
     },
     () => getSocketConnect({ port }),
   );
-  assert(pass.readableEnded);
+  assert(!pass.readableEnded);
   assert(Date.now() - now <= 110);
   assert.equal(response.statusCode, 404);
   assert.equal(onChunkOutgoing.mock.calls.length, 2);

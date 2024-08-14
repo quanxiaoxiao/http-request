@@ -157,11 +157,6 @@ export default (
     function bindResponseDecode() {
       state.decode = decodeHttpResponse({
         onStartLine: async (ret) => {
-          if (state.request.body instanceof Readable
-            && !state.request.body.readableEnded
-          ) {
-            state.request.body.end();
-          }
           state.response.statusCode = ret.statusCode;
           state.response.httpVersion = ret.httpVersion;
           state.response.statusText = ret.statusText;
