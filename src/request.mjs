@@ -7,6 +7,9 @@ import {
   encodeHttp,
   decodeHttpResponse,
   isHttpStream,
+  convertObjectToArray,
+  getHeaderValue,
+  setHeaders,
 } from '@quanxiaoxiao/http-utils';
 import {
   wrapStreamWrite,
@@ -26,6 +29,8 @@ export default (
   const {
     signal,
     onRequest,
+    onRequestEnd,
+    onConnect,
     onStartLine,
     onHeader,
     onEnd,
@@ -79,9 +84,11 @@ export default (
       request: {
         path: options.path || '/',
         method: options.method || 'GET',
-        headers: options.headers || {},
+        headers: options.headers,
         body: options.body ?? null,
+        _headers: [],
         bytesBody: 0,
+        ...Object.hasOwnProperty.call(options, 'data') ? { data: options.data } : {},
       },
 
       response: {
@@ -117,7 +124,7 @@ export default (
       }
     }
 
-    function doOutgoing(chunk) {
+    function doChunkOutgoing(chunk) {
       const size = chunk.length;
       if (size > 0) {
         try {
@@ -137,6 +144,7 @@ export default (
         }
       }
     }
+
     function emitResponseEnd() {
       unbindSignalEvent();
       if (!state.isResponseEndEmit) {
@@ -249,10 +257,40 @@ export default (
       };
     }
 
+    if (state.request.headers) {
+      if (Array.isArray(state.request.headers)) {
+        state.request._headers = [...state.request.headers];
+      } else {
+        state.request._headers = convertObjectToArray(state.request.headers);
+      }
+      if (typeof getConnect !== 'function' && !getHeaderValue(state.request._headers, 'host')) {
+        state.request._headers.push('Host');
+        state.request._headers.push(`${getConnect.hostname || '127.0.0.1'}:${getConnect.port}`);
+      }
+    }
+
+    if (Object.hasOwnProperty.call(state.request, 'data')) {
+      if (state.request.data == null) {
+        state.request.body = null;
+      } else {
+        state.request.body = Buffer.from(JSON.stringify(state.request.data));
+        state.request._headers = setHeaders(
+          state.request._headers,
+          {
+            'Content-Type': 'application/json; charset=utf-8',
+          },
+        );
+      }
+    }
+
     state.connector = createConnector(
       {
         onConnect: async () => {
           state.timeOnConnect = calcTime();
+          if (onConnect) {
+            await onConnect();
+            assert(!controller.signal.aborted);
+          }
           if (onRequest) {
             await onRequest(state.request, getState());
             assert(!controller.signal.aborted);
@@ -262,11 +300,11 @@ export default (
             const encodeRequest = encodeHttp({
               path: state.request.path,
               method: state.request.method,
-              headers: state.request.headers,
+              headers: state.request._headers,
               body: state.request.body,
               onHeader: (chunkRequestHeaders) => {
                 if (!controller.signal.aborted) {
-                  doOutgoing(chunkRequestHeaders);
+                  doChunkOutgoing(chunkRequestHeaders);
                   state.timeOnRequestSend = calcTime();
                 }
               },
@@ -282,13 +320,16 @@ export default (
                       state.request.bytesBody += chunk.length;
                       const buf = encodeRequest(chunk);
                       if (state.response.statusCode == null) {
-                        doOutgoing(buf);
+                        doChunkOutgoing(buf);
                       }
                     },
                     onEnd: () => {
                       state.timeOnRequestEnd = calcTime();
                       if (state.response.statusCode == null) {
-                        doOutgoing(encodeRequest());
+                        doChunkOutgoing(encodeRequest());
+                      }
+                      if (onRequestEnd) {
+                        onRequestEnd(getState());
                       }
                     },
                     onError: (error) => {
@@ -310,9 +351,15 @@ export default (
               assert(Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string');
               state.request.bytesBody = Buffer.byteLength(state.request.body);
             }
-            doOutgoing(encodeHttp(state.request));
+            doChunkOutgoing(encodeHttp({
+              ...state.request,
+              headers: state.request._headers,
+            }));
             state.timeOnRequestSend = calcTime();
             state.timeOnRequestEnd = state.timeOnRequestSend;
+            if (onRequestEnd) {
+              await onRequestEnd(getState());
+            }
           }
         },
         onData: (chunk) => {

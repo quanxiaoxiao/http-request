@@ -292,7 +292,6 @@ test('request', async () => {
     },
     () => getSocketConnect({ port }),
   );
-  server.close();
   assert.equal(ret.body.toString(), 'ok');
   assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 2 });
   assert.deepEqual(ret.headersRaw, ['server', 'quan', 'Content-Length', '2']);
@@ -307,6 +306,7 @@ test('request', async () => {
   assert.equal(onHeader.mock.calls.length, 1);
   assert.equal(onChunkIncoming.mock.calls.length, 1);
   assert.equal(onChunkOutgoing.mock.calls.length, 1);
+  server.close();
 });
 
 test('request by response too early', async () => {
@@ -909,80 +909,119 @@ test('request body with stream, stream trigger error', async () => {
   assert.equal(onRequest.mock.calls.length, 1);
 });
 
-test('request request options invalid', async () => {
+test('request request data', async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});
   const handleCloseOnSocket = mock.fn(() => {});
   const server = net.createServer((socket) => {
     socket.on('data', handleDataOnSocket);
     socket.on('close', handleCloseOnSocket);
+    setTimeout(() => {
+      socket.write(Buffer.from('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok'));
+    }, 600);
   });
   server.listen(port);
 
   const onRequest = mock.fn((options) => {
     assert.deepEqual(options.headers, { name: 'aa' });
-    options.headers = ['name', 'bb', 'good'];
-  });
-
-  try {
-    await request(
-      {
-        headers: {
-          name: 'aa',
-        },
-        onRequest,
-      },
-      () => getSocketConnect({ port }),
+    assert.deepEqual(
+      options._headers,
+      ['name', 'aa', 'Content-Type', 'application/json; charset=utf-8'],
     );
-    throw new Error('xxx');
-  } catch (error) {
-    assert(error instanceof assert.AssertionError);
-  }
+    assert.deepEqual(JSON.parse(options.body.toString()), { name: 'quan' });
+  });
+  const ret = await request(
+    {
+      headers: {
+        name: 'aa',
+      },
+      path: '/aa',
+      data: {
+        name: 'quan',
+      },
+      onRequest,
+    },
+    () => getSocketConnect({ port }),
+  );
+
 
   await waitFor(100);
-  server.close();
-  assert.equal(handleDataOnSocket.mock.calls.length, 0);
+  assert.equal(handleDataOnSocket.mock.calls.length, 1);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   assert.equal(onRequest.mock.calls.length, 1);
+  assert.equal(
+    handleDataOnSocket.mock.calls[0].arguments[0].toString(),
+    'GET /aa HTTP/1.1\r\nname: aa\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: 15\r\n\r\n{"name":"quan"}',
+  );
+  assert.equal(ret.body.toString(), 'ok');
+  server.close();
 });
 
-test('request request options invalid 2', async () => {
+test('request 6666', async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});
+
   const handleCloseOnSocket = mock.fn(() => {});
   const server = net.createServer((socket) => {
     socket.on('data', handleDataOnSocket);
     socket.on('close', handleCloseOnSocket);
+    setTimeout(() => {
+      socket.write(encodeHttp({
+        headers: {
+          server: 'quan',
+        },
+        body: 'ok',
+      }));
+    }, 500);
   });
   server.listen(port);
 
   const onRequest = mock.fn((options) => {
-    assert.deepEqual(options.headers, { name: 'aa' });
-    options.headers = ['name', 'bb', 'good'];
+    assert.deepEqual(options.headers, { name: 'aa', 'content-length': 6 });
+    assert.deepEqual(options._headers, ['name', 'aa', 'content-length', '6', 'Host', `127.0.0.1:${port}`]);
   });
+  const onRequestEnd = mock.fn((state) => {
+    assert.equal(typeof state.timeOnRequestSend, 'number');
+    assert.equal(typeof state.timeOnRequestEnd, 'number');
+    assert.equal(state.timeOnResponse, null);
+  });
+  const requestBody = new PassThrough();
 
-  try {
-    const body = new PassThrough();
-    await request(
-      {
-        headers: {
-          name: 'aa',
-        },
-        body,
-        onRequest,
+  setTimeout(() => {
+    requestBody.write('333');
+  }, 100);
+
+  setTimeout(() => {
+    requestBody.end('444');
+  }, 200);
+
+  const ret = await request(
+    {
+      headers: {
+        name: 'aa',
+        'content-length': 6,
       },
-      () => getSocketConnect({ port }),
-    );
-    throw new Error('xxx');
-  } catch (error) {
-    assert(error instanceof assert.AssertionError);
-  }
+      body: requestBody,
+      onRequest,
+      onRequestEnd,
+    },
+    {
+      port,
+    },
+  );
 
   await waitFor(100);
-  server.close();
-  assert.equal(handleDataOnSocket.mock.calls.length, 0);
+  assert(handleDataOnSocket.mock.calls.length > 1);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   assert.equal(onRequest.mock.calls.length, 1);
+
+  assert.equal(ret.body.toString(), 'ok');
+
+  assert.equal(
+    handleDataOnSocket.mock.calls[0].arguments[0].toString(),
+    `GET / HTTP/1.1\r\nname: aa\r\nHost: 127.0.0.1:${port}\r\nContent-Length: 6\r\n\r\n`,
+  );
+  server.close();
 });
 
 test('request body stream', async () => {
@@ -1818,7 +1857,7 @@ test('request response 111', async () => {
   server.close();
 });
 
-test('request response 2222',{ only: true },  async () => {
+test('request response 2222',  async () => {
   const port = getPort();
   const server = net.createServer((socket) => {
     socket.on('data', () => {});
