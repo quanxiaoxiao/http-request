@@ -1817,3 +1817,27 @@ test('request response 111', async () => {
   );
   server.close();
 });
+
+test('request response 2222',{ only: true },  async () => {
+  const port = getPort();
+  const server = net.createServer((socket) => {
+    socket.on('data', () => {});
+    setTimeout(() => {
+      socket.write('HTTP/1.1 404\r\nServer: quan\r\nContent-Length: 3\r\n\r\naaa');
+    }, 80);
+  });
+  server.listen(port);
+  await waitFor(100);
+  const response = await request(
+    {
+      path: '/aa/bb',
+      body: 'abcde',
+    },
+    {
+      port,
+    },
+  );
+  assert.equal(response.statusCode, 404);
+  assert.equal(response.body.toString(), 'aaa');
+  server.close();
+});

@@ -17,14 +17,12 @@ import {
   SocketCloseError,
   DoAbortError,
 } from './errors.mjs';
+import getSocketConnect from './getSocketConnect.mjs';
 
 export default (
   options,
   getConnect,
-  keepAlive,
 ) => {
-  assert(typeof getConnect === 'function');
-
   const {
     signal,
     onRequest,
@@ -34,15 +32,21 @@ export default (
     onBody,
     onChunkOutgoing,
     onChunkIncoming,
+    keepAlive,
   } = options;
 
   if (signal) {
     assert(!signal.aborted);
   }
 
-  const socket = getConnect();
+  let socket;
 
-  assert(socket && socket instanceof net.Socket);
+  if (typeof getConnect === 'function') {
+    socket = getConnect();
+    assert(socket && socket instanceof net.Socket);
+  } else {
+    socket = getSocketConnect(getConnect);
+  }
 
   if (onBody) {
     assert(typeof onBody === 'function' || onBody instanceof Writable);
