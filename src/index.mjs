@@ -5,6 +5,7 @@ import {
   DoAbortError,
   SocketCloseError,
   DecodeHttpError,
+  HttpResponseTimeoutError,
 } from './errors.mjs';
 
 export {
@@ -15,6 +16,7 @@ export {
   DoAbortError,
   SocketCloseError,
   DecodeHttpError,
+  HttpResponseTimeoutError,
 };
 
 export default request;
