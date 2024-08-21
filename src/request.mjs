@@ -18,6 +18,7 @@ import {
 import { createConnector } from '@quanxiaoxiao/socket';
 import {
   SocketCloseError,
+  HttpResponseTimeoutError,
   DoAbortError,
 } from './errors.mjs';
 import getSocketConnect from './getSocketConnect.mjs';
@@ -38,6 +39,7 @@ export default (
     onChunkOutgoing,
     onChunkIncoming,
     keepAlive,
+    timeoutResponse,
   } = options;
 
   if (signal) {
@@ -65,6 +67,7 @@ export default (
       bytesIncoming: 0,
       bytesOutgoing: 0,
       decode: null,
+      tickWithResposne: null,
 
       isEventSignalBind: false,
       isConnectClose: false,
@@ -113,8 +116,16 @@ export default (
       }
     }
 
+    function clearTickHttpResponseTimeout() {
+      if (state.tickWithResposne != null) {
+        clearTimeout(state.tickWithResposne);
+        state.tickWithResposne = null;
+      }
+    }
+
     function emitError(error) {
       unbindSignalEvent();
+      clearTickHttpResponseTimeout();
       if (!controller.signal.aborted) {
         controller.abort();
         const errObj = typeof error === 'string' ? new Error(error) : error;
@@ -173,6 +184,7 @@ export default (
           state.response.httpVersion = ret.httpVersion;
           state.response.statusText = ret.statusText;
           state.timeOnResponseStartLine = calcTime();
+          clearTickHttpResponseTimeout();
           if (onStartLine) {
             await onStartLine(getState());
             assert(!controller.signal.aborted);
@@ -438,6 +450,14 @@ export default (
     if (signal && !controller.signal.aborted) {
       state.isEventSignalBind = true;
       signal.addEventListener('abort', handleAbortOnSignal, { once: true });
+    }
+    if (timeoutResponse) {
+      state.tickWithResposne = setTimeout(() => {
+        state.tickWithResposne = null;
+        if (state.timeOnResponseStartLine == null) {
+          emitError(new HttpResponseTimeoutError());
+        }
+      }, timeoutResponse);
     }
   });
 };
