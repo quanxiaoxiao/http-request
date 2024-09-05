@@ -1,40 +1,76 @@
 import { DecodeHttpError } from '@quanxiaoxiao/http-utils';
 
-class SocketCloseError extends Error {
-  constructor(message) {
-    super(message);
-    this.code = 'ERR_SOCKET_CLOSE';
-    this.message = message || 'Socket Close Error';
+const getRemoteAddress = (obj) => {
+  if (!obj) {
+    return null;
   }
-}
+  if (typeof obj === 'function') {
+    return null;
+  }
+  const result = {
+    hostname: obj.hostname || '127.0.0.1',
+    port: obj.port,
+  };
+  if (result.port == null) {
+    if (obj.protocol === 'https:') {
+      result.port = 443;
+    } else {
+      result.port = 80;
+    }
+  }
+  return `${result.hostname}:${result.port}`;
+};
 
-class NetConnectTimeoutError extends Error {
-  constructor(message) {
-    super(message);
-    this.code = 'ERR_SOCKET_CONNECTION_TIMEOUT';
-    this.message = message || 'Net Connect Timeout Error';
+class SocketCloseError extends Error {
+  constructor(options) {
+    super();
+    this.code = 'ERR_SOCKET_CLOSE';
+    const remoteAddress = getRemoteAddress(options);
+    if (remoteAddress) {
+      this.message = `${remoteAddress} SOCKET_CLOSE`;
+    } else {
+      this.message = 'SOCKET_CLOSE';
+    }
   }
 }
 
 class DoAbortError extends Error {
-  constructor(message) {
-    super(message);
+  constructor() {
+    super();
     this.code = 'ABORT_ERR';
-    this.message = message || 'abort';
+    this.message = 'abort';
   }
 }
 
 class HttpResponseTimeoutError extends Error {
-  constructor(message) {
-    super(message);
+  constructor(options) {
+    super();
     this.code = 'ERR_HTTP_RESPONSE_TIMEOUT';
-    this.message = message || 'http response timeout';
+    const remoteAddress = getRemoteAddress(options);
+    if (remoteAddress) {
+      this.message = `${remoteAddress} HTTP_RESPONSE_TIMEOUT`;
+    } else {
+      this.message = 'HTTP_RESPONSE_TIMEOUT';
+    }
+  }
+}
+
+class SocketConnectionTimeoutError extends Error {
+  constructor(options) {
+    super();
+    this.code = 'ERR_SOCKET_CONNECTION_TIMEOUT';
+    const remoteAddress = getRemoteAddress(options);
+    if (remoteAddress) {
+      this.message = `${remoteAddress} CONNECTION_TIMEOUT`;
+    } else {
+      this.message = 'CONNECTION_TIMEOUT';
+    }
   }
 }
 
 export {
-  NetConnectTimeoutError,
   DoAbortError,
+  SocketConnectionTimeoutError,
   SocketCloseError,
   DecodeHttpError,
   HttpResponseTimeoutError,

@@ -686,6 +686,7 @@ test('request signal', async () => {
     );
     throw new Error('xxxx');
   } catch (error) {
+    assert.equal(error.code, 'ABORT_ERR');
     assert.equal(error.message, 'abort');
   }
   assert.equal(onStartLine.mock.calls.length, 1);

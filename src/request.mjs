@@ -20,6 +20,7 @@ import {
   SocketCloseError,
   HttpResponseTimeoutError,
   DoAbortError,
+  SocketConnectionTimeoutError,
 } from './errors.mjs';
 import getSocketConnect from './getSocketConnect.mjs';
 
@@ -406,7 +407,11 @@ export default (
         },
         onError: (error) => {
           state.isConnectClose = true;
-          emitError(error);
+          if (error.code === 'ERR_SOCKET_CONNECTION_TIMEOUT') {
+            emitError(new SocketConnectionTimeoutError(getConnect));
+          } else {
+            emitError(error);
+          }
         },
         onClose: () => {
           state.isConnectClose = true;
@@ -414,7 +419,7 @@ export default (
             if (state.timeOnResponseHeader != null && isHttpStream(state.response.headers)) {
               state.response._write();
             } else {
-              emitError(new SocketCloseError());
+              emitError(new SocketCloseError(getConnect));
             }
           }
         },
@@ -455,7 +460,7 @@ export default (
       state.tickWithResposne = setTimeout(() => {
         state.tickWithResposne = null;
         if (state.timeOnResponseStartLine == null) {
-          emitError(new HttpResponseTimeoutError());
+          emitError(new HttpResponseTimeoutError(getConnect));
         }
       }, timeoutResponse);
     }
