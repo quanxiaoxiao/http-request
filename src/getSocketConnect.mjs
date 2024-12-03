@@ -17,6 +17,8 @@ export default ({
       host: hostname || '127.0.0.1',
       port,
       noDelay: true,
+      highWaterMark: 16384,
+      ALPNProtocols: ['http/1.1'],
       rejectUnauthorized,
       secureContext: tls.createSecureContext({
         secureProtocol: 'TLSv1_2_method',
@@ -33,6 +35,7 @@ export default ({
   assert(protocol === 'http:');
   const options = {
     noDelay: true,
+    highWaterMark: 64 * 1024,
     host: hostname || '127.0.0.1',
     port,
   };
