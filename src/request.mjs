@@ -3,6 +3,7 @@ import net from 'node:net';
 import process from 'node:process';
 import { Writable, Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
+import { waitTick } from '@quanxiaoxiao/utils';
 import {
   encodeHttp,
   decodeHttpResponse,
@@ -68,7 +69,6 @@ export default (
       bytesIncoming: 0,
       bytesOutgoing: 0,
       decode: null,
-      tickWithResposne: null,
 
       isEventSignalBind: false,
       isConnectClose: false,
@@ -106,6 +106,12 @@ export default (
       },
     };
 
+    const tickWaitWithResponse = waitTick(timeoutResponse, () => {
+      if (state.timeOnResponseStartLine == null) {
+        emitError(new HttpResponseTimeoutError(getConnect));
+      }
+    });
+
     function calcTime() {
       return performance.now() - state.timeOnStart;
     }
@@ -117,16 +123,9 @@ export default (
       }
     }
 
-    function clearTickHttpResponseTimeout() {
-      if (state.tickWithResposne != null) {
-        clearTimeout(state.tickWithResposne);
-        state.tickWithResposne = null;
-      }
-    }
-
     function emitError(error) {
       unbindSignalEvent();
-      clearTickHttpResponseTimeout();
+      tickWaitWithResponse();
       if (!controller.signal.aborted) {
         controller.abort();
         const errObj = typeof error === 'string' ? new Error(error) : error;
@@ -185,7 +184,7 @@ export default (
           state.response.httpVersion = ret.httpVersion;
           state.response.statusText = ret.statusText;
           state.timeOnResponseStartLine = calcTime();
-          clearTickHttpResponseTimeout();
+          tickWaitWithResponse();
           if (onStartLine) {
             await onStartLine(getState());
             assert(!controller.signal.aborted);
@@ -455,14 +454,6 @@ export default (
     if (signal && !controller.signal.aborted) {
       state.isEventSignalBind = true;
       signal.addEventListener('abort', handleAbortOnSignal, { once: true });
-    }
-    if (timeoutResponse) {
-      state.tickWithResposne = setTimeout(() => {
-        state.tickWithResposne = null;
-        if (state.timeOnResponseStartLine == null) {
-          emitError(new HttpResponseTimeoutError(getConnect));
-        }
-      }, timeoutResponse);
     }
   });
 };
