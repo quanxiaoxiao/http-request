@@ -69,9 +69,9 @@ class SocketConnectionTimeoutError extends Error {
 }
 
 export {
-  DoAbortError,
-  SocketConnectionTimeoutError,
-  SocketCloseError,
   DecodeHttpError,
+  DoAbortError,
   HttpResponseTimeoutError,
+  SocketCloseError,
+  SocketConnectionTimeoutError,
 };

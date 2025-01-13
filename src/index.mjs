@@ -1,21 +1,20 @@
-import request from './request.mjs';
-import getSocketConnect from './getSocketConnect.mjs';
 import {
-  DoAbortError,
-  SocketCloseError,
   DecodeHttpError,
+  DoAbortError,
   HttpResponseTimeoutError,
+  SocketCloseError,
   SocketConnectionTimeoutError,
 } from './errors.mjs';
+import getSocketConnect from './getSocketConnect.mjs';
+import request from './request.mjs';
 
 export {
-  request,
-  getSocketConnect,
-
-  DoAbortError,
-  SocketCloseError,
   DecodeHttpError,
+  DoAbortError,
+  getSocketConnect,
   HttpResponseTimeoutError,
+  request,
+  SocketCloseError,
   SocketConnectionTimeoutError,
 };
 

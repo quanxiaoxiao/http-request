@@ -1,5 +1,5 @@
-import net from 'node:net';
 import assert from 'node:assert';
+import net from 'node:net';
 import tls from 'node:tls';
 
 export default ({

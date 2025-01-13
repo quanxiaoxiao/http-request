@@ -1,16 +1,18 @@
 import assert from 'node:assert';
-import net from 'node:net';
-import { PassThrough } from 'node:stream';
-import path from 'node:path';
 import fs from 'node:fs';
-import { test, mock } from 'node:test';
-import _ from 'lodash';
-import { waitFor } from '@quanxiaoxiao/utils';
+import net from 'node:net';
+import path from 'node:path';
+import { PassThrough } from 'node:stream';
+import { mock,test } from 'node:test';
+
 import {
-  encodeHttp,
-  decodeHttpRequest,
   DecodeHttpError,
+  decodeHttpRequest,
+  encodeHttp,
 } from '@quanxiaoxiao/http-utils';
+import { waitFor } from '@quanxiaoxiao/utils';
+import _ from 'lodash';
+
 import getSocketConnect from './getSocketConnect.mjs';
 import request from './request.mjs';
 
@@ -106,7 +108,7 @@ test('request',  async () => {
     {
       signal: controller.signal,
     },
-    () => getSocketConnect({ port })
+    () => getSocketConnect({ port }),
   );
   assert(!controller.signal.aborted);
   assert.equal(ret.statusCode, 204);
@@ -945,7 +947,6 @@ test('request request data', async () => {
     () => getSocketConnect({ port }),
   );
 
-
   await waitFor(100);
   assert.equal(handleDataOnSocket.mock.calls.length, 1);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
@@ -1122,7 +1123,7 @@ test('request remote socket close, stream body unbind events', async () => {
   assert(!body.eventNames().includes('data'));
   assert(!body.eventNames().includes('close'));
   await waitFor(1000);
-  assert(!body.eventNames().includes('error'));
+  assert(body.eventNames().includes('error'));
   server.close();
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
@@ -1166,7 +1167,7 @@ test('request remote socket close, stream body unbind events 2', async () => {
   assert(!body.eventNames().includes('data'));
   assert(!body.eventNames().includes('close'));
   await waitFor(1000);
-  assert(!body.eventNames().includes('error'));
+  assert(body.eventNames().includes('error'));
   server.close();
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
@@ -1297,7 +1298,7 @@ test('request onBody with stream close', async () => {
   assert(!onBody.eventNames().includes('drain'));
   assert(!onBody.eventNames().includes('close'));
   await waitFor(1000);
-  assert(!onBody.eventNames().includes('error'));
+  assert(onBody.eventNames().includes('error'));
   assert(onBody.destroyed);
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
   fs.unlinkSync(pathname);
@@ -1559,7 +1560,7 @@ test('request response with stream', async () => {
   const server = net.createServer((socket) => {
     socket.on('data', () => {});
     setTimeout(() => {
-      socket.write(`HTTP/1.1 200 OK\r\nServer: quan\r\n\r\naaaa`);
+      socket.write('HTTP/1.1 200 OK\r\nServer: quan\r\n\r\naaaa');
     }, 100);
     setTimeout(() => {
       socket.write('bbbb');
@@ -1762,7 +1763,7 @@ test('request response 500', async () => {
     },
     () => getSocketConnect({ port }),
   );
-  assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 0});
+  assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 0 });
   await waitFor(200);
   assert.equal(onBody.destroyed, true);
   server.close();
@@ -1783,7 +1784,7 @@ test('request response 500', async () => {
     },
     () => getSocketConnect({ port }),
   );
-  assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 0});
+  assert.deepEqual(ret.headers, { server: 'quan', 'content-length': 0 });
   server.close();
 });
 

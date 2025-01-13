@@ -1,7 +1,9 @@
 import assert from 'node:assert';
 import net from 'node:net';
-import { test, mock } from 'node:test';
+import { mock,test } from 'node:test';
+
 import { waitFor } from '@quanxiaoxiao/utils';
+
 import getSocketConnect from './getSocketConnect.mjs';
 
 const _getPort = () => {

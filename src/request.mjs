@@ -1,26 +1,28 @@
 import assert from 'node:assert';
+import { Buffer } from 'node:buffer';
 import net from 'node:net';
 import process from 'node:process';
-import { Writable, Readable } from 'node:stream';
-import { Buffer } from 'node:buffer';
-import { waitTick } from '@quanxiaoxiao/utils';
+import { Readable,Writable } from 'node:stream';
+
 import {
-  encodeHttp,
-  decodeHttpResponse,
-  isHttpStream,
   convertObjectToArray,
+  decodeHttpResponse,
+  encodeHttp,
   getHeaderValue,
+  isHttpStream,
   setHeaders,
 } from '@quanxiaoxiao/http-utils';
 import {
-  wrapStreamWrite,
   wrapStreamRead,
+  wrapStreamWrite,
 } from '@quanxiaoxiao/node-utils';
 import { createConnector } from '@quanxiaoxiao/socket';
+import { waitTick } from '@quanxiaoxiao/utils';
+
 import {
-  SocketCloseError,
-  HttpResponseTimeoutError,
   DoAbortError,
+  HttpResponseTimeoutError,
+  SocketCloseError,
   SocketConnectionTimeoutError,
 } from './errors.mjs';
 import getSocketConnect from './getSocketConnect.mjs';
@@ -108,7 +110,7 @@ export default (
 
     const tickWaitWithResponse = waitTick(timeoutResponse, () => {
       if (state.timeOnResponseStartLine == null) {
-        emitError(new HttpResponseTimeoutError(getConnect));
+        emitError(new HttpResponseTimeoutError(getConnect)); // eslint-disable-line no-use-before-define
       }
     });
 
@@ -119,7 +121,7 @@ export default (
     function unbindSignalEvent() {
       if (state.isEventSignalBind) {
         state.isEventSignalBind = false;
-        signal.removeEventListener('abort', handleAbortOnSignal);
+        signal.removeEventListener('abort', handleAbortOnSignal); // eslint-disable-line no-use-before-define
       }
     }
 
@@ -130,7 +132,7 @@ export default (
         controller.abort();
         const errObj = typeof error === 'string' ? new Error(error) : error;
         errObj.isConnect = state.timeOnConnect != null;
-        errObj.state = getState();
+        errObj.state = getState(); // eslint-disable-line no-use-before-define
         reject(errObj);
       }
     }
@@ -161,7 +163,7 @@ export default (
       if (!state.isResponseEndEmit) {
         state.isResponseEndEmit = true;
         if (!controller.signal.aborted) {
-          resolve(getState());
+          resolve(getState()); // eslint-disable-line no-use-before-define
         }
         if (!state.isConnectClose) {
           if (keepAlive) {
@@ -186,7 +188,7 @@ export default (
           state.timeOnResponseStartLine = calcTime();
           tickWaitWithResponse();
           if (onStartLine) {
-            await onStartLine(getState());
+            await onStartLine(getState()); // eslint-disable-line no-use-before-define
             assert(!controller.signal.aborted);
           }
         },
@@ -195,7 +197,7 @@ export default (
           state.response.headers = ret.headers;
           state.response.headersRaw = ret.headersRaw;
           if (onHeader) {
-            await onHeader(getState());
+            await onHeader(getState()); // eslint-disable-line no-use-before-define
             assert(!controller.signal.aborted);
           }
           if (isHttpStream(ret.headers)) {
@@ -227,7 +229,7 @@ export default (
             state.timeOnResponseBody = state.timeOnResponseEnd;
           }
           if (onEnd) {
-            await onEnd(getState());
+            await onEnd(getState()); // eslint-disable-line no-use-before-define
             assert(!controller.signal.aborted);
           }
           if (state.response._write) {
