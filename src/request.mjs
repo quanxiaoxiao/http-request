@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { Buffer } from 'node:buffer';
 import net from 'node:net';
 import process from 'node:process';
-import { Readable,Writable } from 'node:stream';
+import { Readable, Writable } from 'node:stream';
 
 import {
   convertObjectToArray,
@@ -50,14 +50,8 @@ export default (
     assert(!signal.aborted);
   }
 
-  let socket;
-
-  if (typeof getConnect === 'function') {
-    socket = getConnect();
-    assert(socket && socket instanceof net.Socket);
-  } else {
-    socket = getSocketConnect(getConnect);
-  }
+  const socket = typeof getConnect === 'function' ? getConnect() : getSocketConnect(getConnect);
+  assert(socket && socket instanceof net.Socket);
 
   if (onBody) {
     assert(typeof onBody === 'function' || onBody instanceof Writable);
@@ -86,6 +80,8 @@ export default (
       timeOnResponseHeader: null,
       timeOnResponseBody: null,
       timeOnResponseEnd: null,
+      timeOnLastIncoming: null,
+      timeOnLastOutgoing: null,
 
       request: {
         path: options.path || '/',
@@ -108,15 +104,13 @@ export default (
       },
     };
 
-    let tickWaitWithResponse = () => {};
-
-    if (timeoutResponse != null) {
-      tickWaitWithResponse = waitTick(timeoutResponse, () => {
+    const tickWaitWithResponse = timeoutResponse != null
+      ? waitTick(timeoutResponse, () => {
         if (state.timeOnResponseStartLine == null) {
           emitError(new HttpResponseTimeoutError(getConnect)); // eslint-disable-line no-use-before-define
         }
-      });
-    }
+      })
+      : () => {};
 
     function calcTime() {
       return performance.now() - state.timeOnStart;
@@ -150,6 +144,7 @@ export default (
             onChunkOutgoing(chunk);
           }
           const ret = state.connector.write(chunk);
+          state.timeOnLastOutgoing = calcTime();
           if (ret === false
             && state.request.body instanceof Readable
             && !state.request.body.isPaused()
@@ -264,6 +259,8 @@ export default (
         bytesResponseBody: state.response.bytesBody,
 
         dateTime: state.dateTime,
+        timeOnLastIncoming: state.timeOnLastIncoming,
+        timeOnLastOutgoing: state.timeOnLastOutgoing,
         timeOnConnect: state.timeOnConnect,
         timeOnRequestSend: state.timeOnRequestSend,
         timeOnRequestEnd: state.timeOnRequestEnd,
@@ -276,11 +273,9 @@ export default (
     }
 
     if (state.request.headers) {
-      if (Array.isArray(state.request.headers)) {
-        state.request._headers = [...state.request.headers];
-      } else {
-        state.request._headers = convertObjectToArray(state.request.headers);
-      }
+      state.request._headers = Array.isArray(state.request.headers)
+        ? [...state.request.headers]
+        : convertObjectToArray(state.request.headers);
       if (typeof getConnect !== 'function' && !getHeaderValue(state.request._headers, 'host')) {
         state.request._headers.push('Host');
         state.request._headers.push(`${getConnect.hostname || '127.0.0.1'}:${getConnect.port}`);
@@ -288,16 +283,13 @@ export default (
     }
 
     if (Object.hasOwnProperty.call(state.request, 'data')) {
-      if (state.request.data == null) {
-        state.request.body = null;
-      } else {
-        state.request.body = Buffer.from(JSON.stringify(state.request.data));
-        state.request._headers = setHeaders(
-          state.request._headers,
-          {
-            'Content-Type': 'application/json; charset=utf-8',
-          },
-        );
+      state.request.body = state.request.data == null
+        ? null
+        : Buffer.from(JSON.stringify(state.request.data));
+      if (state.request.body) {
+        state.request._headers = setHeaders(state.request._headers, {
+          'Content-Type': 'application/json; charset=utf-8',
+        });
       }
     }
 
@@ -385,8 +377,9 @@ export default (
           assert(state.timeOnRequestSend != null);
           const size = chunk.length;
           state.bytesIncoming += size;
+          state.timeOnLastIncoming = calcTime();
           if (!state.decode) {
-            state.timeOnResponse = calcTime();
+            state.timeOnResponse = state.timeOnLastIncoming;
             bindResponseDecode();
           }
           if (size > 0) {
