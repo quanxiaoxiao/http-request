@@ -27,7 +27,7 @@ const _getPort = () => {
 
 const getPort = _getPort();
 
-test('request signal aborted',  () => {
+test('request signal aborted', () => {
   assert.throws(
     () => {
       const controller = new AbortController();
@@ -47,7 +47,7 @@ test('request signal aborted',  () => {
   );
 });
 
-test('request socket unable connect 1',  async () => {
+test('request socket unable connect 1', async () => {
   const port = getPort();
   try {
     await request(
@@ -69,7 +69,7 @@ test('request socket unable connect 1',  async () => {
   }
 });
 
-test('request socket unable connect 2',  async () => {
+test('request socket unable connect 2', async () => {
   try {
     await request(
       {
@@ -84,7 +84,7 @@ test('request socket unable connect 2',  async () => {
   await waitFor();
 });
 
-test('request',  async () => {
+test('request', async () => {
   const port = getPort();
 
   const handleDataOnSocket = mock.fn(() => {});
@@ -117,7 +117,7 @@ test('request',  async () => {
   assert.equal(handleDataOnSocket.mock.calls.length, 1);
 });
 
-test('request onBody with stream, response with empty',  async () => {
+test('request onBody with stream, response with empty', async () => {
   const port = getPort();
 
   const handleDataOnSocket = mock.fn(() => {});
@@ -698,7 +698,7 @@ test('request signal', async () => {
   assert.equal(handleCloseOnSocket.mock.calls.length, 1);
 });
 
-test('request outgoing trigger error',  async () => {
+test('request outgoing trigger error', async () => {
   const port = getPort();
   const handleDataOnSocket = mock.fn(() => {});
   const handleCloseOnSocket = mock.fn(() => {});
@@ -1739,7 +1739,7 @@ test('request response body stream backpress', async () => {
     () => getSocketConnect({ port }),
   );
   assert.equal(ret.statusCode, 200);
-  assert.deepEqual(ret.headers, {  server: 'quan', 'transfer-encoding': 'chunked' });
+  assert.deepEqual(ret.headers, { server: 'quan', 'transfer-encoding': 'chunked' });
   const buf = fs.readFileSync(pathname);
   assert(new RegExp(`:${count - 1}$`).test(buf.toString()));
   fs.unlinkSync(pathname);
@@ -1859,7 +1859,7 @@ test('request response 111', async () => {
   server.close();
 });
 
-test('request response 2222',  async () => {
+test('request response 2222', async () => {
   const port = getPort();
   const server = net.createServer((socket) => {
     socket.on('data', () => {});

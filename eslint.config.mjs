@@ -31,9 +31,13 @@ export default [
       'simple-import-sort/exports': 'error',
       'no-duplicate-imports': 2,
       'array-callback-return': 2,
+      'prefer-const': 2,
+      'no-multi-spaces': 2,
+      eqeqeq: ['error', 'always', { null: 'ignore' }],
       'block-scoped-var': 2,
       'consistent-return': 2,
       'default-case': 2,
+      'no-shadow': 2,
       'object-shorthand': 2,
       'quote-props': ['error', 'as-needed'],
       quotes: [

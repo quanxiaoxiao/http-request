@@ -12,35 +12,29 @@ export default ({
   if (port != null) {
     assert(port >= 0 && port <= 65535 && Number.isInteger(port));
   }
-  if (protocol === 'https:') {
-    const options = {
-      host: hostname || '127.0.0.1',
-      port,
-      noDelay: true,
-      highWaterMark: 16384,
+  const isHttps = protocol === 'https:';
+  const defaultPort = isHttps ? 443 : 80;
+
+  const commonOptions = {
+    host: hostname,
+    port: port ?? defaultPort,
+    noDelay: true,
+    highWaterMark: isHttps ? 16384 : 64 * 1024,
+  };
+
+  if (isHttps) {
+    const tlsOptions = {
       ALPNProtocols: ['http/1.1'],
       rejectUnauthorized,
       secureContext: tls.createSecureContext({
         secureProtocol: 'TLSv1_2_method',
       }),
+      ...(servername && { servername }),
     };
-    if (options.port == null) {
-      options.port = 443;
-    }
-    if (servername) {
-      options.servername = servername;
-    }
-    return tls.connect(options);
+
+    return tls.connect(Object.assign(commonOptions, tlsOptions));
   }
-  assert(protocol === 'http:');
-  const options = {
-    noDelay: true,
-    highWaterMark: 64 * 1024,
-    host: hostname || '127.0.0.1',
-    port,
-  };
-  if (options.port == null) {
-    options.port = 80;
-  }
-  return net.connect(options);
+
+  assert(protocol === 'http:', 'Protocol must be either "http:" or "https:"');
+  return net.connect(commonOptions);
 };

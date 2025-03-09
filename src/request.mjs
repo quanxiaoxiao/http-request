@@ -108,11 +108,15 @@ export default (
       },
     };
 
-    const tickWaitWithResponse = waitTick(timeoutResponse, () => {
-      if (state.timeOnResponseStartLine == null) {
-        emitError(new HttpResponseTimeoutError(getConnect)); // eslint-disable-line no-use-before-define
-      }
-    });
+    let tickWaitWithResponse = () => {};
+
+    if (timeoutResponse != null) {
+      tickWaitWithResponse = waitTick(timeoutResponse, () => {
+        if (state.timeOnResponseStartLine == null) {
+          emitError(new HttpResponseTimeoutError(getConnect)); // eslint-disable-line no-use-before-define
+        }
+      });
+    }
 
     function calcTime() {
       return performance.now() - state.timeOnStart;

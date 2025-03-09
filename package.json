@@ -15,19 +15,19 @@
     "registry": "https://registry.npmjs.org"
   },
   "devDependencies": {
-    "@eslint/js": "^9.3.0",
-    "eslint": "^9.3.0",
+    "@eslint/js": "^9.22.0",
+    "eslint": "^9.22.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
-    "globals": "^15.3.0"
+    "globals": "^15.15.0"
   },
   "engines": {
     "node": ">= 20.0.0"
   },
   "dependencies": {
-    "@quanxiaoxiao/http-utils": "^0.27.0",
-    "@quanxiaoxiao/node-utils": "^0.15.0",
-    "@quanxiaoxiao/socket": "^0.17.0",
-    "@quanxiaoxiao/utils": "^0.15.0",
+    "@quanxiaoxiao/http-utils": "^0.30.0",
+    "@quanxiaoxiao/node-utils": "^0.16.0",
+    "@quanxiaoxiao/socket": "^0.18.0",
+    "@quanxiaoxiao/utils": "^0.16.0",
     "lodash": "^4.17.21"
   }
 }
