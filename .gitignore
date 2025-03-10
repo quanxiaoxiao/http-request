@@ -6,7 +6,6 @@ dist
 .DS_store
 .env
 _index.mjs
-_index.js
 _temp
 
 # Swap

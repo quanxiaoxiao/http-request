@@ -3,6 +3,7 @@ import { Buffer } from 'node:buffer';
 import net from 'node:net';
 import process from 'node:process';
 import { Readable, Writable } from 'node:stream';
+import tls from 'node:tls';
 
 import {
   convertObjectToArray,
@@ -73,6 +74,7 @@ export default (
       dateTime: Date.now(),
       timeOnStart: performance.now(),
       timeOnConnect: null,
+      timeOnSecureConnect: null,
       timeOnRequestSend: null,
       timeOnRequestEnd: null,
       timeOnResponse: null,
@@ -262,6 +264,9 @@ export default (
         timeOnLastIncoming: state.timeOnLastIncoming,
         timeOnLastOutgoing: state.timeOnLastOutgoing,
         timeOnConnect: state.timeOnConnect,
+        ...socket instanceof tls.TLSSocket ? {
+          timeOnSecureConnect: state.timeOnSecureConnect,
+        } : {},
         timeOnRequestSend: state.timeOnRequestSend,
         timeOnRequestEnd: state.timeOnRequestEnd,
         timeOnResponse: state.timeOnResponse,
@@ -293,10 +298,20 @@ export default (
       }
     }
 
+    if (socket instanceof tls.TLSSocket && socket.readyState === 'opening') {
+      socket.once('connect', () => {
+        state.timeOnConnect = calcTime();
+      });
+    }
+
     state.connector = createConnector(
       {
         onConnect: async () => {
-          state.timeOnConnect = calcTime();
+          if (socket instanceof tls.TLSSocket) {
+            state.timeOnSecureConnect = calcTime();
+          } else {
+            state.timeOnConnect = calcTime();
+          }
           if (onConnect) {
             await onConnect();
             assert(!controller.signal.aborted);

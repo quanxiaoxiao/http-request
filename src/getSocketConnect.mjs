@@ -35,6 +35,6 @@ export default ({
     return tls.connect(Object.assign(commonOptions, tlsOptions));
   }
 
-  assert(protocol === 'http:', 'Protocol must be either "http:" or "https:"');
+  assert(protocol === 'http:', 'Protocol must be either `http:` or `https:`');
   return net.connect(commonOptions);
 };
