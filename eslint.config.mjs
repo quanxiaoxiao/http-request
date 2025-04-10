@@ -40,6 +40,7 @@ export default [
       'no-shadow': 2,
       'object-shorthand': 2,
       'quote-props': ['error', 'as-needed'],
+      'no-unused-vars': ['error', { caughtErrors: 'none' }],
       quotes: [
         'error',
         'single',

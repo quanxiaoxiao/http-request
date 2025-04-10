@@ -172,7 +172,7 @@ export default (
           } else {
             try {
               state.connector.end();
-            } catch (error) { // eslint-disable-line
+            } catch (error) {
               // ignore
             }
           }

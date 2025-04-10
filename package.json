@@ -1,6 +1,6 @@
 {
   "name": "@quanxiaoxiao/http-request",
-  "version": "0.59.0",
+  "version": "0.60.0",
   "type": "module",
   "main": "./src/index.mjs",
   "exports": {
@@ -15,8 +15,8 @@
     "registry": "https://registry.npmjs.org"
   },
   "devDependencies": {
-    "@eslint/js": "^9.22.0",
-    "eslint": "^9.22.0",
+    "@eslint/js": "^9.24.0",
+    "eslint": "^9.24.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
     "globals": "^16.0.0"
   },
@@ -24,10 +24,10 @@
     "node": ">= 20.0.0"
   },
   "dependencies": {
-    "@quanxiaoxiao/http-utils": "^0.30.0",
+    "@quanxiaoxiao/http-utils": "^0.31.0",
     "@quanxiaoxiao/node-utils": "^0.16.0",
-    "@quanxiaoxiao/socket": "^0.19.0",
-    "@quanxiaoxiao/utils": "^0.16.0",
+    "@quanxiaoxiao/socket": "^0.24.0",
+    "@quanxiaoxiao/utils": "^0.17.0",
     "lodash": "^4.17.21"
   }
 }
