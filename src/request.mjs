@@ -315,7 +315,7 @@ const handleConnect = async (
   await sendRequest(state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState);
 };
 
-const handleData = (chunk, state, calcTime, bindResponseDecode, onChunkIncoming, controller, emitError) => {
+const handleData = (chunk, state, bindResponseDecode, onChunkIncoming, controller, emitError) => {
   assert(!controller.signal.aborted, 'Request should not be aborted when receiving data');
   assert(state.timeOnRequestSend != null, 'Request should be sent before receiving response');
 
@@ -360,24 +360,6 @@ const handleConnectorClose = (state, emitError, emitResponseEnd, getConnect) => 
       emitError(new SocketCloseError(getConnect));
     }
   }
-};
-
-const createConnectorOptions = (
-  state, socket, controller, onConnect, onRequest, onRequestEnd,
-  getState, doChunkOutgoing, bindResponseDecode, onChunkIncoming, emitError, emitResponseEnd,
-) => {
-  return {
-    onConnect: () => handleConnect(
-      state, socket, controller, calcTime, onConnect, onRequest, onRequestEnd,
-      getState, doChunkOutgoing,
-    ),
-    onData: (chunk) => handleData(
-      chunk, state, calcTime, bindResponseDecode, onChunkIncoming, controller, emitError,
-    ),
-    onDrain: () => handleDrain(state, controller),
-    onError: (error) => handleConnectorError(error, state, emitError, getConnect),
-    onClose: () => handleConnectorClose(state, emitError, emitResponseEnd, getConnect),
-  };
 };
 
 export default (
@@ -630,55 +612,12 @@ export default (
             }
           }
         },
-        onData: (chunk) => {
-          assert(!controller.signal.aborted);
-          assert(state.timeOnRequestSend != null);
-          const size = chunk.length;
-          state.bytesIncoming += size;
-          state.timeOnLastIncoming = calcTime(state);
-          if (!state.decode) {
-            state.timeOnResponse = state.timeOnLastIncoming;
-            bindResponseDecode();
-          }
-          if (size > 0) {
-            if (onChunkIncoming) {
-              onChunkIncoming(chunk);
-            }
-            state.decode(chunk)
-              .then(
-                () => {},
-                (error) => {
-                  emitError(error);
-                },
-              );
-          }
-        },
-        onDrain: () => {
-          if (!controller.signal.aborted
-            && state.request.body instanceof Readable
-            && state.request.body.isPaused()
-          ) {
-            state.request.body.resume();
-          }
-        },
-        onError: (error) => {
-          state.isConnectClose = true;
-          if (error.code === 'ERR_SOCKET_CONNECTION_TIMEOUT') {
-            emitError(new SocketConnectionTimeoutError(getConnect));
-          } else {
-            emitError(error);
-          }
-        },
-        onClose: () => {
-          state.isConnectClose = true;
-          if (state.timeOnResponseEnd == null) {
-            if (state.timeOnResponseHeader != null && isHttpStream(state.response.headers)) {
-              state.response._write();
-            } else {
-              emitError(new SocketCloseError(getConnect));
-            }
-          }
-        },
+        onData: (chunk) => handleData(
+          chunk, state, bindResponseDecode, onChunkIncoming, controller, emitError,
+        ),
+        onDrain: () => handleDrain(state, controller),
+        onError: (error) => handleConnectorError(error, state, emitError, getConnect),
+        onClose: () => handleConnectorClose(state, emitError, emitResponseEnd, getConnect),
       },
       () => socket,
       controller.signal,
