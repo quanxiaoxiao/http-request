@@ -49,6 +49,7 @@ const calcTime = (state) => {
 const createInitialState = (options) => {
   return {
     connector: null,
+    socket: null,
     bytesIncoming: 0,
     bytesOutgoing: 0,
     decode: null,
@@ -105,7 +106,7 @@ const createResponseTimeout = (timeoutResponse, callback) => {
     : () => {};
 };
 
-const createStateSnapshot = (state, socket) => {
+const createStateSnapshot = (state) => {
   const baseState = {
     bytesIncoming: state.bytesIncoming,
     bytesOutgoing: state.bytesOutgoing,
@@ -130,7 +131,7 @@ const createStateSnapshot = (state, socket) => {
     timeOnResponseEnd: state.timeOnResponseEnd,
   };
 
-  if (socket instanceof tls.TLSSocket) {
+  if (state.socket instanceof tls.TLSSocket) {
     baseState.timeOnSecureConnect = state.timeOnSecureConnect;
   }
 
@@ -170,9 +171,9 @@ const initializeRequest = (state, getConnect) => {
   }
 };
 
-const handleTLSConnection = (socket, state) => {
-  if (socket instanceof tls.TLSSocket && socket.readyState === 'opening') {
-    socket.once('connect', () => {
+const handleTLSConnection = (state) => {
+  if (state.socket instanceof tls.TLSSocket && state.socket.readyState === 'opening') {
+    state.socket.once('connect', () => {
       state.timeOnConnect = calcTime(state);
     });
   }
@@ -209,7 +210,7 @@ const bindAbortSignal = (signal, controller, state, handleAbortOnSignal) => {
   }
 };
 
-const handleStreamRequest = (state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState) => {
+const handleStreamRequest = (state, controller, doChunkOutgoing, onRequestEnd, emitError) => {
   assert(state.request.body.readable, 'Request body stream must be readable');
 
   const encodeRequest = encodeHttp({
@@ -244,7 +245,7 @@ const handleStreamRequest = (state, controller, doChunkOutgoing, calcTime, onReq
           if (state.response.statusCode == null) {
             doChunkOutgoing(encodeRequest());
           }
-          onRequestEnd?.(getState());
+          onRequestEnd?.(createStateSnapshot(state));
         },
         onError: (error) => {
           emitError(error);
@@ -262,7 +263,7 @@ const handleStreamRequest = (state, controller, doChunkOutgoing, calcTime, onReq
   });
 };
 
-const handleBufferRequest = async (state, doChunkOutgoing, calcTime, onRequestEnd, getState) => {
+const handleBufferRequest = async (state, doChunkOutgoing, onRequestEnd) => {
   if (state.request.body != null) {
     assert(
       Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string',
@@ -280,23 +281,24 @@ const handleBufferRequest = async (state, doChunkOutgoing, calcTime, onRequestEn
   state.timeOnRequestEnd = state.timeOnRequestSend;
 
   if (onRequestEnd) {
-    await onRequestEnd(getState());
+    await onRequestEnd(createStateSnapshot(state));
   }
 };
 
-const sendRequest = async (state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState) => {
+const sendRequest = async (state, controller, doChunkOutgoing, onRequestEnd, emitError) => {
   if (state.request.body instanceof Readable) {
-    await handleStreamRequest(state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState);
+    await handleStreamRequest(state, controller, doChunkOutgoing, onRequestEnd, emitError);
   } else {
-    await handleBufferRequest(state, doChunkOutgoing, calcTime, onRequestEnd, getState);
+    await handleBufferRequest(state, doChunkOutgoing, onRequestEnd);
   }
 };
 
 const handleConnect = async (
-  state, socket, controller, calcTime, onConnect, onRequest, onRequestEnd,
-  getState, doChunkOutgoing,
+  state, controller, onConnect, onRequest, onRequestEnd,
+  doChunkOutgoing,
+  emitError,
 ) => {
-  if (socket instanceof tls.TLSSocket) {
+  if (state.socket instanceof tls.TLSSocket) {
     state.timeOnSecureConnect = calcTime(state);
   } else {
     state.timeOnConnect = calcTime(state);
@@ -308,11 +310,11 @@ const handleConnect = async (
   }
 
   if (onRequest) {
-    await onRequest(state.request, getState());
+    await onRequest(state.request, createStateSnapshot(state));
     assert(!controller.signal.aborted, 'Request aborted during onRequest');
   }
 
-  await sendRequest(state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState);
+  await sendRequest(state, controller, doChunkOutgoing, onRequestEnd, emitError);
 };
 
 const handleData = (chunk, state, bindResponseDecode, onChunkIncoming, controller, emitError) => {
@@ -387,6 +389,8 @@ export default (
   const controller = new AbortController();
   const socket = getSocketInstance(getConnect);
 
+  state.socket = socket;
+
   return new Promise((resolve, reject) => {
     function unbindSignalEvent() {
       if (state.isEventSignalBind) {
@@ -442,7 +446,7 @@ export default (
       if (!state.isResponseEndEmit) {
         state.isResponseEndEmit = true;
         if (!controller.signal.aborted) {
-          resolve(createStateSnapshot(state, socket));
+          resolve(createStateSnapshot(state));
         }
         if (!state.isConnectClose) {
           if (keepAlive) {
@@ -467,7 +471,7 @@ export default (
           state.timeOnResponseStartLine = calcTime(state);
           tickWaitWithResponse();
           if (onStartLine) {
-            await onStartLine(createStateSnapshot(state, socket));
+            await onStartLine(createStateSnapshot(state));
             assert(!controller.signal.aborted);
           }
         },
@@ -476,7 +480,7 @@ export default (
           state.response.headers = ret.headers;
           state.response.headersRaw = ret.headersRaw;
           if (onHeader) {
-            await onHeader(createStateSnapshot(state, socket));
+            await onHeader(createStateSnapshot(state));
             assert(!controller.signal.aborted);
           }
           if (isHttpStream(ret.headers)) {
@@ -508,7 +512,7 @@ export default (
             state.timeOnResponseBody = state.timeOnResponseEnd;
           }
           if (onEnd) {
-            await onEnd(createStateSnapshot(state, socket));
+            await onEnd(createStateSnapshot(state));
             assert(!controller.signal.aborted);
           }
           if (state.response._write) {
@@ -527,91 +531,15 @@ export default (
 
     initializeRequest(state, getConnect);
 
-    handleTLSConnection(socket, state);
+    handleTLSConnection(state);
 
     state.connector = createConnector(
       {
-        onConnect: async () => {
-          if (socket instanceof tls.TLSSocket) {
-            state.timeOnSecureConnect = calcTime(state);
-          } else {
-            state.timeOnConnect = calcTime(state);
-          }
-          if (onConnect) {
-            await onConnect();
-            assert(!controller.signal.aborted);
-          }
-          if (onRequest) {
-            await onRequest(state.request, createStateSnapshot(state, socket));
-            assert(!controller.signal.aborted);
-          }
-          if (state.request.body instanceof Readable) {
-            assert(state.request.body.readable);
-            const encodeRequest = encodeHttp({
-              path: state.request.path,
-              method: state.request.method,
-              headers: state.request._headers,
-              body: state.request.body,
-              onHeader: (chunkRequestHeaders) => {
-                if (!controller.signal.aborted) {
-                  doChunkOutgoing(chunkRequestHeaders);
-                  state.timeOnRequestSend = calcTime(state);
-                }
-              },
-            });
-
-            process.nextTick(() => {
-              if (!controller.signal.aborted) {
-                try {
-                  wrapStreamRead({
-                    stream: state.request.body,
-                    signal: controller.signal,
-                    onData: (chunk) => {
-                      state.request.bytesBody += chunk.length;
-                      const buf = encodeRequest(chunk);
-                      if (state.response.statusCode == null) {
-                        doChunkOutgoing(buf);
-                      }
-                    },
-                    onEnd: () => {
-                      state.timeOnRequestEnd = calcTime(state);
-                      if (state.response.statusCode == null) {
-                        doChunkOutgoing(encodeRequest());
-                      }
-                      if (onRequestEnd) {
-                        onRequestEnd(createStateSnapshot(state, socket));
-                      }
-                    },
-                    onError: (error) => {
-                      emitError(error);
-                    },
-                  });
-                  setTimeout(() => {
-                    if (state.request.body.isPaused()) {
-                      state.request.body.resume();
-                    }
-                  });
-                } catch (error) {
-                  emitError(error);
-                }
-              }
-            });
-          } else {
-            if (state.request.body != null) {
-              assert(Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string');
-              state.request.bytesBody = Buffer.byteLength(state.request.body);
-            }
-            doChunkOutgoing(encodeHttp({
-              ...state.request,
-              headers: state.request._headers,
-            }));
-            state.timeOnRequestSend = calcTime(state);
-            state.timeOnRequestEnd = state.timeOnRequestSend;
-            if (onRequestEnd) {
-              await onRequestEnd(createStateSnapshot(state, socket));
-            }
-          }
-        },
+        onConnect: () => handleConnect(
+          state, controller, onConnect, onRequest, onRequestEnd,
+          doChunkOutgoing,
+          emitError,
+        ),
         onData: (chunk) => handleData(
           chunk, state, bindResponseDecode, onChunkIncoming, controller, emitError,
         ),
