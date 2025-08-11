@@ -28,6 +28,72 @@ import {
 } from './errors.mjs';
 import getSocketConnect from './getSocketConnect.mjs';
 
+const validateInputs = (signal, options) => {
+  if (signal) {
+    assert(!signal.aborted, 'Signal should not be aborted');
+  }
+
+  if (options.onBody) {
+    assert(
+      typeof options.onBody === 'function' || options.onBody instanceof Writable,
+      'onBody must be a function or Writable stream',
+    );
+  }
+};
+
+const createInitialState = (options) => {
+  return {
+    connector: null,
+    bytesIncoming: 0,
+    bytesOutgoing: 0,
+    decode: null,
+
+    isEventSignalBind: false,
+    isConnectClose: false,
+    isResponseEndEmit: false,
+
+    dateTime: Date.now(),
+    timeOnStart: performance.now(),
+    timeOnConnect: null,
+    timeOnSecureConnect: null,
+    timeOnRequestSend: null,
+    timeOnRequestEnd: null,
+    timeOnResponse: null,
+    timeOnResponseStartLine: null,
+    timeOnResponseHeader: null,
+    timeOnResponseBody: null,
+    timeOnResponseEnd: null,
+    timeOnLastIncoming: null,
+    timeOnLastOutgoing: null,
+
+    request: {
+      path: options.path || '/',
+      method: options.method || 'GET',
+      headers: options.headers,
+      body: options.body ?? null,
+      _headers: [],
+      bytesBody: 0,
+      ...Object.hasOwnProperty.call(options, 'data') ? { data: options.data } : {},
+    },
+
+    response: {
+      body: null,
+      statusCode: null,
+      httpVersion: null,
+      statusText: null,
+      bytesBody: 0,
+      headers: {},
+      headersRaw: [],
+    },
+  };
+};
+
+const getSocketInstance = (getConnect) => {
+  const socket = typeof getConnect === 'function' ? getConnect() : getSocketConnect(getConnect);
+  assert(socket && socket instanceof net.Socket, 'Socket must be a valid net.Socket instance');
+  return socket;
+};
+
 export default (
   options,
   getConnect,
@@ -47,65 +113,13 @@ export default (
     timeoutResponse,
   } = options;
 
-  if (signal) {
-    assert(!signal.aborted);
-  }
+  validateInputs(signal, options);
 
-  const socket = typeof getConnect === 'function' ? getConnect() : getSocketConnect(getConnect);
-  assert(socket && socket instanceof net.Socket);
-
-  if (onBody) {
-    assert(typeof onBody === 'function' || onBody instanceof Writable);
-  }
-
+  const state = createInitialState(options);
   const controller = new AbortController();
+  const socket = getSocketInstance(getConnect);
 
   return new Promise((resolve, reject) => {
-    const state = {
-      connector: null,
-      bytesIncoming: 0,
-      bytesOutgoing: 0,
-      decode: null,
-
-      isEventSignalBind: false,
-      isConnectClose: false,
-      isResponseEndEmit: false,
-
-      dateTime: Date.now(),
-      timeOnStart: performance.now(),
-      timeOnConnect: null,
-      timeOnSecureConnect: null,
-      timeOnRequestSend: null,
-      timeOnRequestEnd: null,
-      timeOnResponse: null,
-      timeOnResponseStartLine: null,
-      timeOnResponseHeader: null,
-      timeOnResponseBody: null,
-      timeOnResponseEnd: null,
-      timeOnLastIncoming: null,
-      timeOnLastOutgoing: null,
-
-      request: {
-        path: options.path || '/',
-        method: options.method || 'GET',
-        headers: options.headers,
-        body: options.body ?? null,
-        _headers: [],
-        bytesBody: 0,
-        ...Object.hasOwnProperty.call(options, 'data') ? { data: options.data } : {},
-      },
-
-      response: {
-        body: null,
-        statusCode: null,
-        httpVersion: null,
-        statusText: null,
-        bytesBody: 0,
-        headers: {},
-        headersRaw: [],
-      },
-    };
-
     const tickWaitWithResponse = timeoutResponse != null
       ? waitTick(timeoutResponse, () => {
         if (state.timeOnResponseStartLine == null) {
