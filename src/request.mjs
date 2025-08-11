@@ -1,3 +1,4 @@
+/* eslint no-use-before-define: 0 */
 import assert from 'node:assert';
 import { Buffer } from 'node:buffer';
 import net from 'node:net';
@@ -94,6 +95,51 @@ const getSocketInstance = (getConnect) => {
   return socket;
 };
 
+const createResponseTimeout = (timeoutResponse, callback) => {
+  return timeoutResponse != null
+    ? waitTick(timeoutResponse, callback)
+    : () => {};
+};
+
+const createStateSnapshot = (state, socket) => {
+  const baseState = {
+    bytesIncoming: state.bytesIncoming,
+    bytesOutgoing: state.bytesOutgoing,
+    httpVersion: state.response.httpVersion,
+    statusCode: state.response.statusCode,
+    statusText: state.response.statusText,
+    headersRaw: state.response.headersRaw,
+    headers: state.response.headers,
+    body: state.response.body,
+    bytesRequestBody: state.request.bytesBody,
+    bytesResponseBody: state.response.bytesBody,
+    dateTime: state.dateTime,
+    timeOnLastIncoming: state.timeOnLastIncoming,
+    timeOnLastOutgoing: state.timeOnLastOutgoing,
+    timeOnConnect: state.timeOnConnect,
+    timeOnRequestSend: state.timeOnRequestSend,
+    timeOnRequestEnd: state.timeOnRequestEnd,
+    timeOnResponse: state.timeOnResponse,
+    timeOnResponseStartLine: state.timeOnResponseStartLine,
+    timeOnResponseHeader: state.timeOnResponseHeader,
+    timeOnResponseBody: state.timeOnResponseBody,
+    timeOnResponseEnd: state.timeOnResponseEnd,
+  };
+
+  if (socket instanceof tls.TLSSocket) {
+    baseState.timeOnSecureConnect = state.timeOnSecureConnect;
+  }
+
+  return baseState;
+};
+
+const createErrorObject = (error, state) => {
+  const errorObj = typeof error === 'string' ? new Error(error) : error;
+  errorObj.isConnect = state.timeOnConnect != null;
+  errorObj.state = createStateSnapshot(state);
+  return errorObj;
+};
+
 export default (
   options,
   getConnect,
@@ -120,14 +166,6 @@ export default (
   const socket = getSocketInstance(getConnect);
 
   return new Promise((resolve, reject) => {
-    const tickWaitWithResponse = timeoutResponse != null
-      ? waitTick(timeoutResponse, () => {
-        if (state.timeOnResponseStartLine == null) {
-          emitError(new HttpResponseTimeoutError(getConnect)); // eslint-disable-line no-use-before-define
-        }
-      })
-      : () => {};
-
     function calcTime() {
       return performance.now() - state.timeOnStart;
     }
@@ -135,20 +173,28 @@ export default (
     function unbindSignalEvent() {
       if (state.isEventSignalBind) {
         state.isEventSignalBind = false;
-        signal.removeEventListener('abort', handleAbortOnSignal); // eslint-disable-line no-use-before-define
+        signal.removeEventListener('abort', handleAbortOnSignal);
       }
     }
 
+    const tickWaitWithResponse = createResponseTimeout(timeoutResponse, () => {
+      if (state.timeOnResponseStartLine == null) {
+        emitError(new HttpResponseTimeoutError(getConnect));
+      }
+    });
+
     function emitError(error) {
-      unbindSignalEvent();
-      tickWaitWithResponse();
+      cleanup();
       if (!controller.signal.aborted) {
         controller.abort();
-        const errObj = typeof error === 'string' ? new Error(error) : error;
-        errObj.isConnect = state.timeOnConnect != null;
-        errObj.state = getState(); // eslint-disable-line no-use-before-define
-        reject(errObj);
+        const errorObj = createErrorObject(error, state);
+        reject(errorObj);
       }
+    }
+
+    function cleanup() {
+      unbindSignalEvent();
+      tickWaitWithResponse();
     }
 
     function doChunkOutgoing(chunk) {
@@ -178,7 +224,7 @@ export default (
       if (!state.isResponseEndEmit) {
         state.isResponseEndEmit = true;
         if (!controller.signal.aborted) {
-          resolve(getState()); // eslint-disable-line no-use-before-define
+          resolve(getState());
         }
         if (!state.isConnectClose) {
           if (keepAlive) {
@@ -203,7 +249,7 @@ export default (
           state.timeOnResponseStartLine = calcTime();
           tickWaitWithResponse();
           if (onStartLine) {
-            await onStartLine(getState()); // eslint-disable-line no-use-before-define
+            await onStartLine(getState());
             assert(!controller.signal.aborted);
           }
         },
@@ -212,7 +258,7 @@ export default (
           state.response.headers = ret.headers;
           state.response.headersRaw = ret.headersRaw;
           if (onHeader) {
-            await onHeader(getState()); // eslint-disable-line no-use-before-define
+            await onHeader(getState());
             assert(!controller.signal.aborted);
           }
           if (isHttpStream(ret.headers)) {
@@ -244,7 +290,7 @@ export default (
             state.timeOnResponseBody = state.timeOnResponseEnd;
           }
           if (onEnd) {
-            await onEnd(getState()); // eslint-disable-line no-use-before-define
+            await onEnd(getState());
             assert(!controller.signal.aborted);
           }
           if (state.response._write) {
