@@ -140,6 +140,40 @@ const createErrorObject = (error, state) => {
   return errorObj;
 };
 
+const initializeRequest = (state, getConnect) => {
+  if (state.request.headers) {
+    state.request._headers = Array.isArray(state.request.headers)
+      ? [...state.request.headers]
+      : convertObjectToArray(state.request.headers);
+
+    if (typeof getConnect !== 'function' && !getHeaderValue(state.request._headers, 'host')) {
+      const hostname = getConnect.hostname || '127.0.0.1';
+      const port = getConnect.port;
+      state.request._headers.push('Host', `${hostname}:${port}`);
+    }
+  }
+
+  if (Object.hasOwnProperty.call(state.request, 'data')) {
+    state.request.body = state.request.data == null
+      ? null
+      : Buffer.from(JSON.stringify(state.request.data));
+
+    if (state.request.body) {
+      state.request._headers = setHeaders(state.request._headers, {
+        'Content-Type': 'application/json; charset=utf-8',
+      });
+    }
+  }
+};
+
+const handleTLSConnection = (socket, state, calcTime) => {
+  if (socket instanceof tls.TLSSocket && socket.readyState === 'opening') {
+    socket.once('connect', () => {
+      state.timeOnConnect = calcTime();
+    });
+  }
+};
+
 export default (
   options,
   getConnect,
@@ -307,32 +341,9 @@ export default (
       emitError(new DoAbortError());
     }
 
-    if (state.request.headers) {
-      state.request._headers = Array.isArray(state.request.headers)
-        ? [...state.request.headers]
-        : convertObjectToArray(state.request.headers);
-      if (typeof getConnect !== 'function' && !getHeaderValue(state.request._headers, 'host')) {
-        state.request._headers.push('Host');
-        state.request._headers.push(`${getConnect.hostname || '127.0.0.1'}:${getConnect.port}`);
-      }
-    }
+    initializeRequest(state, getConnect);
 
-    if (Object.hasOwnProperty.call(state.request, 'data')) {
-      state.request.body = state.request.data == null
-        ? null
-        : Buffer.from(JSON.stringify(state.request.data));
-      if (state.request.body) {
-        state.request._headers = setHeaders(state.request._headers, {
-          'Content-Type': 'application/json; charset=utf-8',
-        });
-      }
-    }
-
-    if (socket instanceof tls.TLSSocket && socket.readyState === 'opening') {
-      socket.once('connect', () => {
-        state.timeOnConnect = calcTime();
-      });
-    }
+    handleTLSConnection(socket, state, calcTime);
 
     state.connector = createConnector(
       {
