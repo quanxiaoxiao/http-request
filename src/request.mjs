@@ -293,58 +293,6 @@ const sendRequest = async (state, controller, doChunkOutgoing, onRequestEnd, emi
   }
 };
 
-const handleConnect = async (
-  state, controller, onConnect, onRequest, onRequestEnd,
-  doChunkOutgoing,
-  emitError,
-) => {
-  if (state.socket instanceof tls.TLSSocket) {
-    state.timeOnSecureConnect = calcTime(state);
-  } else {
-    state.timeOnConnect = calcTime(state);
-  }
-
-  if (onConnect) {
-    await onConnect();
-    assert(!controller.signal.aborted, 'Request aborted during onConnect');
-  }
-
-  if (onRequest) {
-    await onRequest(state.request, createStateSnapshot(state));
-    assert(!controller.signal.aborted, 'Request aborted during onRequest');
-  }
-
-  await sendRequest(state, controller, doChunkOutgoing, onRequestEnd, emitError);
-};
-
-const handleDrain = (state, controller) => {
-  if (!controller.signal.aborted
-    && state.request.body instanceof Readable
-    && state.request.body.isPaused()
-  ) {
-    state.request.body.resume();
-  }
-};
-
-const handleConnectorError = (error, state, emitError, getConnect) => {
-  state.isConnectClose = true;
-  const errorToEmit = error.code === 'ERR_SOCKET_CONNECTION_TIMEOUT'
-    ? new SocketConnectionTimeoutError(getConnect)
-    : error;
-  emitError(errorToEmit);
-};
-
-const handleConnectorClose = (state, emitError, emitResponseEnd, getConnect) => {
-  state.isConnectClose = true;
-  if (state.timeOnResponseEnd == null) {
-    if (state.timeOnResponseHeader != null && isHttpStream(state.response.headers)) {
-      state.response._write?.();
-    } else {
-      emitError(new SocketCloseError(getConnect));
-    }
-  }
-};
-
 export default (
   options,
   getConnect,
@@ -533,18 +481,64 @@ export default (
       }
     };
 
+    const handleDrain = () => {
+      if (!controller.signal.aborted
+        && state.request.body instanceof Readable
+        && state.request.body.isPaused()
+      ) {
+        state.request.body.resume();
+      }
+    };
+
+    const handleConnectorError = (error) => {
+      state.isConnectClose = true;
+      const errorToEmit = error.code === 'ERR_SOCKET_CONNECTION_TIMEOUT'
+        ? new SocketConnectionTimeoutError(getConnect)
+        : error;
+      emitError(errorToEmit);
+    };
+
+    const handleConnectorClose = () => {
+      state.isConnectClose = true;
+      if (state.timeOnResponseEnd == null) {
+        if (state.timeOnResponseHeader != null && isHttpStream(state.response.headers)) {
+          state.response._write?.();
+        } else {
+          emitError(new SocketCloseError(getConnect));
+        }
+      }
+    };
+
+    const handleConnect = async () => {
+      if (state.socket instanceof tls.TLSSocket) {
+        state.timeOnSecureConnect = calcTime(state);
+      } else {
+        state.timeOnConnect = calcTime(state);
+      }
+
+      if (onConnect) {
+        await onConnect();
+        assert(!controller.signal.aborted, 'Request aborted during onConnect');
+      }
+
+      if (onRequest) {
+        await onRequest(state.request, createStateSnapshot(state));
+        assert(!controller.signal.aborted, 'Request aborted during onRequest');
+      }
+
+      await sendRequest(state, controller, doChunkOutgoing, onRequestEnd, emitError);
+    };
+
+    const createConnectorOptions = () => ({
+      onConnect: handleConnect,
+      onData: handleData,
+      onDrain: handleDrain,
+      onError: handleConnectorError,
+      onClose: handleConnectorClose,
+    });
+
     state.connector = createConnector(
-      {
-        onConnect: () => handleConnect(
-          state, controller, onConnect, onRequest, onRequestEnd,
-          doChunkOutgoing,
-          emitError,
-        ),
-        onData: (chunk) => handleData(chunk),
-        onDrain: () => handleDrain(state, controller),
-        onError: (error) => handleConnectorError(error, state, emitError, getConnect),
-        onClose: () => handleConnectorClose(state, emitError, emitResponseEnd, getConnect),
-      },
+      createConnectorOptions,
       () => socket,
       controller.signal,
     );
