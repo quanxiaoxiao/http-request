@@ -42,9 +42,7 @@ const validateInputs = (signal, options) => {
   }
 };
 
-const calcTime = (state) => {
-  return performance.now() - state.timeOnStart;
-};
+const calcTime = (state) => performance.now() - state.timeOnStart;
 
 const createInitialState = (options) => {
   return {
@@ -210,6 +208,29 @@ const bindAbortSignal = (signal, controller, state, handleAbortOnSignal) => {
   }
 };
 
+const handleBackpressure = (writeResult, state) => {
+  if (writeResult === false
+    && state.request.body instanceof Readable
+    && !state.request.body.isPaused()
+  ) {
+    state.request.body.pause();
+  }
+};
+
+const handleConnectionCleanup = (state, keepAlive) => {
+  if (state.isConnectClose) return;
+
+  if (keepAlive) {
+    state.connector.detach();
+  } else {
+    try {
+      state.connector.end();
+    } catch (error) {
+      // ignore
+    }
+  }
+};
+
 export default (
   options,
   getConnect,
@@ -267,45 +288,26 @@ export default (
 
     function doChunkOutgoing(chunk) {
       const size = chunk.length;
-      if (size > 0) {
-        try {
-          state.bytesOutgoing += size;
-          if (onChunkOutgoing) {
-            onChunkOutgoing(chunk);
-          }
-          const ret = state.connector.write(chunk);
-          state.timeOnLastOutgoing = calcTime(state);
-          if (ret === false
-            && state.request.body instanceof Readable
-            && !state.request.body.isPaused()
-          ) {
-            state.request.body.pause();
-          }
-        } catch (error) {
-          emitError(error);
-        }
+      if (size <= 0) return;
+      try {
+        state.bytesOutgoing += size;
+        onChunkOutgoing?.(chunk);
+        const writeResult = state.connector.write(chunk);
+        state.timeOnLastOutgoing = calcTime(state);
+        handleBackpressure(writeResult, state);
+      } catch (error) {
+        emitError(error);
       }
     }
 
     function emitResponseEnd() {
-      unbindSignalEvent();
-      if (!state.isResponseEndEmit) {
-        state.isResponseEndEmit = true;
-        if (!controller.signal.aborted) {
-          resolve(createStateSnapshot(state));
-        }
-        if (!state.isConnectClose) {
-          if (keepAlive) {
-            state.connector.detach();
-          } else {
-            try {
-              state.connector.end();
-            } catch (error) {
-              // ignore
-            }
-          }
-        }
+      cleanup();
+      if (state.isResponseEndEmit) return;
+      state.isResponseEndEmit = true;
+      if (!controller.signal.aborted) {
+        resolve(createStateSnapshot(state));
       }
+      handleConnectionCleanup(state, keepAlive);
     }
 
     function bindResponseDecode() {
