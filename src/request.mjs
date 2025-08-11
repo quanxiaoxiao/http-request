@@ -42,6 +42,10 @@ const validateInputs = (signal, options) => {
   }
 };
 
+const calcTime = (state) => {
+  return performance.now() - state.timeOnStart;
+};
+
 const createInitialState = (options) => {
   return {
     connector: null,
@@ -166,12 +170,214 @@ const initializeRequest = (state, getConnect) => {
   }
 };
 
-const handleTLSConnection = (socket, state, calcTime) => {
+const handleTLSConnection = (socket, state) => {
   if (socket instanceof tls.TLSSocket && socket.readyState === 'opening') {
     socket.once('connect', () => {
-      state.timeOnConnect = calcTime();
+      state.timeOnConnect = calcTime(state);
     });
   }
+};
+
+const setupResponseStreamWrite = (onBody, state, controller, emitError) => {
+  if (!(onBody instanceof Writable)) return;
+
+  try {
+    state.response._write = wrapStreamWrite({
+      signal: controller.signal,
+      stream: onBody,
+      onPause: () => {
+        if (!controller.signal.aborted) {
+          state.connector.pause();
+        }
+      },
+      onDrain: () => {
+        if (!controller.signal.aborted) {
+          state.connector.resume();
+        }
+      },
+      onError: emitError,
+    });
+  } catch (error) {
+    emitError(error);
+  }
+};
+
+const bindAbortSignal = (signal, controller, state, handleAbortOnSignal) => {
+  if (signal && !controller.signal.aborted) {
+    state.isEventSignalBind = true;
+    signal.addEventListener('abort', handleAbortOnSignal, { once: true });
+  }
+};
+
+const handleStreamRequest = (state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState) => {
+  assert(state.request.body.readable, 'Request body stream must be readable');
+
+  const encodeRequest = encodeHttp({
+    path: state.request.path,
+    method: state.request.method,
+    headers: state.request._headers,
+    body: state.request.body,
+    onHeader: (chunkRequestHeaders) => {
+      if (!controller.signal.aborted) {
+        doChunkOutgoing(chunkRequestHeaders);
+        state.timeOnRequestSend = calcTime(state);
+      }
+    },
+  });
+
+  process.nextTick(() => {
+    if (controller.signal.aborted) return;
+
+    try {
+      wrapStreamRead({
+        stream: state.request.body,
+        signal: controller.signal,
+        onData: (chunk) => {
+          state.request.bytesBody += chunk.length;
+          const buf = encodeRequest(chunk);
+          if (state.response.statusCode == null) {
+            doChunkOutgoing(buf);
+          }
+        },
+        onEnd: () => {
+          state.timeOnRequestEnd = calcTime(state);
+          if (state.response.statusCode == null) {
+            doChunkOutgoing(encodeRequest());
+          }
+          onRequestEnd?.(getState());
+        },
+        onError: (error) => {
+          emitError(error);
+        },
+      });
+
+      setTimeout(() => {
+        if (state.request.body.isPaused()) {
+          state.request.body.resume();
+        }
+      });
+    } catch (error) {
+      emitError(error);
+    }
+  });
+};
+
+const handleBufferRequest = async (state, doChunkOutgoing, calcTime, onRequestEnd, getState) => {
+  if (state.request.body != null) {
+    assert(
+      Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string',
+      'Request body must be Buffer or string',
+    );
+    state.request.bytesBody = Buffer.byteLength(state.request.body);
+  }
+
+  doChunkOutgoing(encodeHttp({
+    ...state.request,
+    headers: state.request._headers,
+  }));
+
+  state.timeOnRequestSend = calcTime(state);
+  state.timeOnRequestEnd = state.timeOnRequestSend;
+
+  if (onRequestEnd) {
+    await onRequestEnd(getState());
+  }
+};
+
+const sendRequest = async (state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState) => {
+  if (state.request.body instanceof Readable) {
+    await handleStreamRequest(state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState);
+  } else {
+    await handleBufferRequest(state, doChunkOutgoing, calcTime, onRequestEnd, getState);
+  }
+};
+
+const handleConnect = async (
+  state, socket, controller, calcTime, onConnect, onRequest, onRequestEnd,
+  getState, doChunkOutgoing,
+) => {
+  if (socket instanceof tls.TLSSocket) {
+    state.timeOnSecureConnect = calcTime(state);
+  } else {
+    state.timeOnConnect = calcTime(state);
+  }
+
+  if (onConnect) {
+    await onConnect();
+    assert(!controller.signal.aborted, 'Request aborted during onConnect');
+  }
+
+  if (onRequest) {
+    await onRequest(state.request, getState());
+    assert(!controller.signal.aborted, 'Request aborted during onRequest');
+  }
+
+  await sendRequest(state, controller, doChunkOutgoing, calcTime, onRequestEnd, getState);
+};
+
+const handleData = (chunk, state, calcTime, bindResponseDecode, onChunkIncoming, controller, emitError) => {
+  assert(!controller.signal.aborted, 'Request should not be aborted when receiving data');
+  assert(state.timeOnRequestSend != null, 'Request should be sent before receiving response');
+
+  const size = chunk.length;
+  state.bytesIncoming += size;
+  state.timeOnLastIncoming = calcTime(state);
+
+  if (!state.decode) {
+    state.timeOnResponse = state.timeOnLastIncoming;
+    bindResponseDecode();
+  }
+
+  if (size > 0) {
+    onChunkIncoming?.(chunk);
+    state.decode(chunk).catch(emitError);
+  }
+};
+
+const handleDrain = (state, controller) => {
+  if (!controller.signal.aborted
+    && state.request.body instanceof Readable
+    && state.request.body.isPaused()
+  ) {
+    state.request.body.resume();
+  }
+};
+
+const handleConnectorError = (error, state, emitError, getConnect) => {
+  state.isConnectClose = true;
+  const errorToEmit = error.code === 'ERR_SOCKET_CONNECTION_TIMEOUT'
+    ? new SocketConnectionTimeoutError(getConnect)
+    : error;
+  emitError(errorToEmit);
+};
+
+const handleConnectorClose = (state, emitError, emitResponseEnd, getConnect) => {
+  state.isConnectClose = true;
+  if (state.timeOnResponseEnd == null) {
+    if (state.timeOnResponseHeader != null && isHttpStream(state.response.headers)) {
+      state.response._write?.();
+    } else {
+      emitError(new SocketCloseError(getConnect));
+    }
+  }
+};
+
+const createConnectorOptions = (
+  state, socket, controller, onConnect, onRequest, onRequestEnd,
+  getState, doChunkOutgoing, bindResponseDecode, onChunkIncoming, emitError, emitResponseEnd,
+) => {
+  return {
+    onConnect: () => handleConnect(
+      state, socket, controller, calcTime, onConnect, onRequest, onRequestEnd,
+      getState, doChunkOutgoing,
+    ),
+    onData: (chunk) => handleData(
+      chunk, state, calcTime, bindResponseDecode, onChunkIncoming, controller, emitError,
+    ),
+    onDrain: () => handleDrain(state, controller),
+    onError: (error) => handleConnectorError(error, state, emitError, getConnect),
+    onClose: () => handleConnectorClose(state, emitError, emitResponseEnd, getConnect),
+  };
 };
 
 export default (
@@ -200,10 +406,6 @@ export default (
   const socket = getSocketInstance(getConnect);
 
   return new Promise((resolve, reject) => {
-    function calcTime() {
-      return performance.now() - state.timeOnStart;
-    }
-
     function unbindSignalEvent() {
       if (state.isEventSignalBind) {
         state.isEventSignalBind = false;
@@ -240,7 +442,7 @@ export default (
             onChunkOutgoing(chunk);
           }
           const ret = state.connector.write(chunk);
-          state.timeOnLastOutgoing = calcTime();
+          state.timeOnLastOutgoing = calcTime(state);
           if (ret === false
             && state.request.body instanceof Readable
             && !state.request.body.isPaused()
@@ -280,7 +482,7 @@ export default (
           state.response.statusCode = ret.statusCode;
           state.response.httpVersion = ret.httpVersion;
           state.response.statusText = ret.statusText;
-          state.timeOnResponseStartLine = calcTime();
+          state.timeOnResponseStartLine = calcTime(state);
           tickWaitWithResponse();
           if (onStartLine) {
             await onStartLine(createStateSnapshot(state, socket));
@@ -288,7 +490,7 @@ export default (
           }
         },
         onHeader: async (ret) => {
-          state.timeOnResponseHeader = calcTime();
+          state.timeOnResponseHeader = calcTime(state);
           state.response.headers = ret.headers;
           state.response.headersRaw = ret.headersRaw;
           if (onHeader) {
@@ -301,7 +503,7 @@ export default (
         },
         onBody: (bodyChunk) => {
           if (state.timeOnResponseBody == null) {
-            state.timeOnResponseBody = calcTime();
+            state.timeOnResponseBody = calcTime(state);
           }
           state.response.bytesBody += bodyChunk.length;
           if (state.response._write) {
@@ -319,7 +521,7 @@ export default (
           }
         },
         onEnd: async () => {
-          state.timeOnResponseEnd = calcTime();
+          state.timeOnResponseEnd = calcTime(state);
           if (state.timeOnResponseBody == null) {
             state.timeOnResponseBody = state.timeOnResponseEnd;
           }
@@ -343,15 +545,15 @@ export default (
 
     initializeRequest(state, getConnect);
 
-    handleTLSConnection(socket, state, calcTime);
+    handleTLSConnection(socket, state);
 
     state.connector = createConnector(
       {
         onConnect: async () => {
           if (socket instanceof tls.TLSSocket) {
-            state.timeOnSecureConnect = calcTime();
+            state.timeOnSecureConnect = calcTime(state);
           } else {
-            state.timeOnConnect = calcTime();
+            state.timeOnConnect = calcTime(state);
           }
           if (onConnect) {
             await onConnect();
@@ -371,7 +573,7 @@ export default (
               onHeader: (chunkRequestHeaders) => {
                 if (!controller.signal.aborted) {
                   doChunkOutgoing(chunkRequestHeaders);
-                  state.timeOnRequestSend = calcTime();
+                  state.timeOnRequestSend = calcTime(state);
                 }
               },
             });
@@ -390,7 +592,7 @@ export default (
                       }
                     },
                     onEnd: () => {
-                      state.timeOnRequestEnd = calcTime();
+                      state.timeOnRequestEnd = calcTime(state);
                       if (state.response.statusCode == null) {
                         doChunkOutgoing(encodeRequest());
                       }
@@ -421,7 +623,7 @@ export default (
               ...state.request,
               headers: state.request._headers,
             }));
-            state.timeOnRequestSend = calcTime();
+            state.timeOnRequestSend = calcTime(state);
             state.timeOnRequestEnd = state.timeOnRequestSend;
             if (onRequestEnd) {
               await onRequestEnd(createStateSnapshot(state, socket));
@@ -433,7 +635,7 @@ export default (
           assert(state.timeOnRequestSend != null);
           const size = chunk.length;
           state.bytesIncoming += size;
-          state.timeOnLastIncoming = calcTime();
+          state.timeOnLastIncoming = calcTime(state);
           if (!state.decode) {
             state.timeOnResponse = state.timeOnLastIncoming;
             bindResponseDecode();
@@ -482,33 +684,7 @@ export default (
       controller.signal,
     );
 
-    if (onBody instanceof Writable) {
-      try {
-        state.response._write = wrapStreamWrite({
-          signal: controller.signal,
-          stream: onBody,
-          onPause: () => {
-            if (!controller.signal.aborted) {
-              state.connector.pause();
-            }
-          },
-          onDrain: () => {
-            if (!controller.signal.aborted) {
-              state.connector.resume();
-            }
-          },
-          onError: (error) => {
-            emitError(error);
-          },
-        });
-      } catch (error) {
-        emitError(error);
-      }
-    }
-
-    if (signal && !controller.signal.aborted) {
-      state.isEventSignalBind = true;
-      signal.addEventListener('abort', handleAbortOnSignal, { once: true });
-    }
+    setupResponseStreamWrite(onBody, state, controller, emitError);
+    bindAbortSignal(signal, controller, state, handleAbortOnSignal);
   });
 };
