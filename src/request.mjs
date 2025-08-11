@@ -224,7 +224,7 @@ export default (
       if (!state.isResponseEndEmit) {
         state.isResponseEndEmit = true;
         if (!controller.signal.aborted) {
-          resolve(getState());
+          resolve(createStateSnapshot(state, socket));
         }
         if (!state.isConnectClose) {
           if (keepAlive) {
@@ -249,7 +249,7 @@ export default (
           state.timeOnResponseStartLine = calcTime();
           tickWaitWithResponse();
           if (onStartLine) {
-            await onStartLine(getState());
+            await onStartLine(createStateSnapshot(state, socket));
             assert(!controller.signal.aborted);
           }
         },
@@ -258,7 +258,7 @@ export default (
           state.response.headers = ret.headers;
           state.response.headersRaw = ret.headersRaw;
           if (onHeader) {
-            await onHeader(getState());
+            await onHeader(createStateSnapshot(state, socket));
             assert(!controller.signal.aborted);
           }
           if (isHttpStream(ret.headers)) {
@@ -290,7 +290,7 @@ export default (
             state.timeOnResponseBody = state.timeOnResponseEnd;
           }
           if (onEnd) {
-            await onEnd(getState());
+            await onEnd(createStateSnapshot(state, socket));
             assert(!controller.signal.aborted);
           }
           if (state.response._write) {
@@ -305,36 +305,6 @@ export default (
     function handleAbortOnSignal() {
       state.isEventSignalBind = false;
       emitError(new DoAbortError());
-    }
-
-    function getState() {
-      return {
-        bytesIncoming: state.bytesIncoming,
-        bytesOutgoing: state.bytesOutgoing,
-        httpVersion: state.response.httpVersion,
-        statusCode: state.response.statusCode,
-        statusText: state.response.statusText,
-        headersRaw: state.response.headersRaw,
-        headers: state.response.headers,
-        body: state.response.body,
-        bytesRequestBody: state.request.bytesBody,
-        bytesResponseBody: state.response.bytesBody,
-
-        dateTime: state.dateTime,
-        timeOnLastIncoming: state.timeOnLastIncoming,
-        timeOnLastOutgoing: state.timeOnLastOutgoing,
-        timeOnConnect: state.timeOnConnect,
-        ...socket instanceof tls.TLSSocket ? {
-          timeOnSecureConnect: state.timeOnSecureConnect,
-        } : {},
-        timeOnRequestSend: state.timeOnRequestSend,
-        timeOnRequestEnd: state.timeOnRequestEnd,
-        timeOnResponse: state.timeOnResponse,
-        timeOnResponseStartLine: state.timeOnResponseStartLine,
-        timeOnResponseHeader: state.timeOnResponseHeader,
-        timeOnResponseBody: state.timeOnResponseBody,
-        timeOnResponseEnd: state.timeOnResponseEnd,
-      };
     }
 
     if (state.request.headers) {
@@ -377,7 +347,7 @@ export default (
             assert(!controller.signal.aborted);
           }
           if (onRequest) {
-            await onRequest(state.request, getState());
+            await onRequest(state.request, createStateSnapshot(state, socket));
             assert(!controller.signal.aborted);
           }
           if (state.request.body instanceof Readable) {
@@ -414,7 +384,7 @@ export default (
                         doChunkOutgoing(encodeRequest());
                       }
                       if (onRequestEnd) {
-                        onRequestEnd(getState());
+                        onRequestEnd(createStateSnapshot(state, socket));
                       }
                     },
                     onError: (error) => {
@@ -443,7 +413,7 @@ export default (
             state.timeOnRequestSend = calcTime();
             state.timeOnRequestEnd = state.timeOnRequestSend;
             if (onRequestEnd) {
-              await onRequestEnd(getState());
+              await onRequestEnd(createStateSnapshot(state, socket));
             }
           }
         },
