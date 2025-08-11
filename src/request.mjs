@@ -317,25 +317,6 @@ const handleConnect = async (
   await sendRequest(state, controller, doChunkOutgoing, onRequestEnd, emitError);
 };
 
-const handleData = (chunk, state, bindResponseDecode, onChunkIncoming, controller, emitError) => {
-  assert(!controller.signal.aborted, 'Request should not be aborted when receiving data');
-  assert(state.timeOnRequestSend != null, 'Request should be sent before receiving response');
-
-  const size = chunk.length;
-  state.bytesIncoming += size;
-  state.timeOnLastIncoming = calcTime(state);
-
-  if (!state.decode) {
-    state.timeOnResponse = state.timeOnLastIncoming;
-    bindResponseDecode();
-  }
-
-  if (size > 0) {
-    onChunkIncoming?.(chunk);
-    state.decode(chunk).catch(emitError);
-  }
-};
-
 const handleDrain = (state, controller) => {
   if (!controller.signal.aborted
     && state.request.body instanceof Readable
@@ -533,6 +514,25 @@ export default (
 
     handleTLSConnection(state);
 
+    const handleData = (chunk) => {
+      assert(!controller.signal.aborted, 'Request should not be aborted when receiving data');
+      assert(state.timeOnRequestSend != null, 'Request should be sent before receiving response');
+
+      const size = chunk.length;
+      state.bytesIncoming += size;
+      state.timeOnLastIncoming = calcTime(state);
+
+      if (!state.decode) {
+        state.timeOnResponse = state.timeOnLastIncoming;
+        bindResponseDecode();
+      }
+
+      if (size > 0) {
+        onChunkIncoming?.(chunk);
+        state.decode(chunk).catch(emitError);
+      }
+    };
+
     state.connector = createConnector(
       {
         onConnect: () => handleConnect(
@@ -540,9 +540,7 @@ export default (
           doChunkOutgoing,
           emitError,
         ),
-        onData: (chunk) => handleData(
-          chunk, state, bindResponseDecode, onChunkIncoming, controller, emitError,
-        ),
+        onData: (chunk) => handleData(chunk),
         onDrain: () => handleDrain(state, controller),
         onError: (error) => handleConnectorError(error, state, emitError, getConnect),
         onClose: () => handleConnectorClose(state, emitError, emitResponseEnd, getConnect),
