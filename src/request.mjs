@@ -210,89 +210,6 @@ const bindAbortSignal = (signal, controller, state, handleAbortOnSignal) => {
   }
 };
 
-const handleStreamRequest = (state, controller, doChunkOutgoing, onRequestEnd, emitError) => {
-  assert(state.request.body.readable, 'Request body stream must be readable');
-
-  const encodeRequest = encodeHttp({
-    path: state.request.path,
-    method: state.request.method,
-    headers: state.request._headers,
-    body: state.request.body,
-    onHeader: (chunkRequestHeaders) => {
-      if (!controller.signal.aborted) {
-        doChunkOutgoing(chunkRequestHeaders);
-        state.timeOnRequestSend = calcTime(state);
-      }
-    },
-  });
-
-  process.nextTick(() => {
-    if (controller.signal.aborted) return;
-
-    try {
-      wrapStreamRead({
-        stream: state.request.body,
-        signal: controller.signal,
-        onData: (chunk) => {
-          state.request.bytesBody += chunk.length;
-          const buf = encodeRequest(chunk);
-          if (state.response.statusCode == null) {
-            doChunkOutgoing(buf);
-          }
-        },
-        onEnd: () => {
-          state.timeOnRequestEnd = calcTime(state);
-          if (state.response.statusCode == null) {
-            doChunkOutgoing(encodeRequest());
-          }
-          onRequestEnd?.(createStateSnapshot(state));
-        },
-        onError: (error) => {
-          emitError(error);
-        },
-      });
-
-      setTimeout(() => {
-        if (state.request.body.isPaused()) {
-          state.request.body.resume();
-        }
-      });
-    } catch (error) {
-      emitError(error);
-    }
-  });
-};
-
-const handleBufferRequest = async (state, doChunkOutgoing, onRequestEnd) => {
-  if (state.request.body != null) {
-    assert(
-      Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string',
-      'Request body must be Buffer or string',
-    );
-    state.request.bytesBody = Buffer.byteLength(state.request.body);
-  }
-
-  doChunkOutgoing(encodeHttp({
-    ...state.request,
-    headers: state.request._headers,
-  }));
-
-  state.timeOnRequestSend = calcTime(state);
-  state.timeOnRequestEnd = state.timeOnRequestSend;
-
-  if (onRequestEnd) {
-    await onRequestEnd(createStateSnapshot(state));
-  }
-};
-
-const sendRequest = async (state, controller, doChunkOutgoing, onRequestEnd, emitError) => {
-  if (state.request.body instanceof Readable) {
-    await handleStreamRequest(state, controller, doChunkOutgoing, onRequestEnd, emitError);
-  } else {
-    await handleBufferRequest(state, doChunkOutgoing, onRequestEnd);
-  }
-};
-
 export default (
   options,
   getConnect,
@@ -509,6 +426,89 @@ export default (
       }
     };
 
+    const handleStreamRequest = () => {
+      assert(state.request.body.readable, 'Request body stream must be readable');
+
+      const encodeRequest = encodeHttp({
+        path: state.request.path,
+        method: state.request.method,
+        headers: state.request._headers,
+        body: state.request.body,
+        onHeader: (chunkRequestHeaders) => {
+          if (!controller.signal.aborted) {
+            doChunkOutgoing(chunkRequestHeaders);
+            state.timeOnRequestSend = calcTime(state);
+          }
+        },
+      });
+
+      process.nextTick(() => {
+        if (controller.signal.aborted) return;
+
+        try {
+          wrapStreamRead({
+            stream: state.request.body,
+            signal: controller.signal,
+            onData: (chunk) => {
+              state.request.bytesBody += chunk.length;
+              const buf = encodeRequest(chunk);
+              if (state.response.statusCode == null) {
+                doChunkOutgoing(buf);
+              }
+            },
+            onEnd: () => {
+              state.timeOnRequestEnd = calcTime(state);
+              if (state.response.statusCode == null) {
+                doChunkOutgoing(encodeRequest());
+              }
+              onRequestEnd?.(createStateSnapshot(state));
+            },
+            onError: (error) => {
+              emitError(error);
+            },
+          });
+
+          setTimeout(() => {
+            if (state.request.body.isPaused()) {
+              state.request.body.resume();
+            }
+          });
+        } catch (error) {
+          emitError(error);
+        }
+      });
+    };
+
+    const handleBufferRequest = async () => {
+      if (state.request.body != null) {
+        assert(
+          Buffer.isBuffer(state.request.body) || typeof state.request.body === 'string',
+          'Request body must be Buffer or string',
+        );
+        state.request.bytesBody = Buffer.byteLength(state.request.body);
+      }
+
+      doChunkOutgoing(encodeHttp({
+        ...state.request,
+        headers: state.request._headers,
+      }));
+
+      state.timeOnRequestSend = calcTime(state);
+      state.timeOnRequestEnd = state.timeOnRequestSend;
+
+      if (onRequestEnd) {
+        await onRequestEnd(createStateSnapshot(state));
+      }
+    };
+
+    const sendRequest = async () => {
+      if (state.request.body instanceof Readable) {
+        await handleStreamRequest();
+      } else {
+        await handleBufferRequest();
+      }
+    };
+
     const handleConnect = async () => {
       if (state.socket instanceof tls.TLSSocket) {
         state.timeOnSecureConnect = calcTime(state);
@@ -526,7 +526,7 @@ export default (
         assert(!controller.signal.aborted, 'Request aborted during onRequest');
       }
 
-      await sendRequest(state, controller, doChunkOutgoing, onRequestEnd, emitError);
+      await sendRequest();
     };
 
     const createConnectorOptions = () => ({
