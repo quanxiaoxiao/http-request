@@ -538,7 +538,7 @@ export default (
     });
 
     state.connector = createConnector(
-      createConnectorOptions,
+      createConnectorOptions(),
       () => socket,
       controller.signal,
     );
