@@ -531,16 +531,14 @@ export default (
       await sendRequest();
     };
 
-    const createConnectorOptions = () => ({
-      onConnect: handleConnect,
-      onData: handleData,
-      onDrain: handleDrain,
-      onError: handleConnectorError,
-      onClose: handleConnectorClose,
-    });
-
     state.connector = createConnector(
-      createConnectorOptions(),
+      {
+        onConnect: handleConnect,
+        onData: handleData,
+        onDrain: handleDrain,
+        onError: handleConnectorError,
+        onClose: handleConnectorClose,
+      },
       () => socket,
       controller.signal,
     );
